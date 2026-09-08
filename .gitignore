@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 db.sqlite3
 .env
+
+# uploaded media files (e.g. banner images), not part of the source code
+banner/
