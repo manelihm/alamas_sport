@@ -8,3 +8,5 @@ class Banner(models.Model):
     button_text = models.CharField(max_length=122)
     sort_order = models.CharField(max_length=122)
     is_active = models.BooleanField()
+
+

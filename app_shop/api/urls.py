@@ -18,5 +18,10 @@ from django.urls import path
 from app_shop.api import views
 
 urlpatterns = [
-    path("banner-list/", views.banner_list),
+    path("banners/", views.banner_list),
+    path('banners/create/', views.banner_create),
+    path('banners/apdate/' , views.banner_update),
+    path("banners/delete/", views.banner_delete),
+    path("banners/change_status" ,views.banner_change_status) ,
+    path("banners/banner_display_order" ,views.banner_display_order)
 ]
