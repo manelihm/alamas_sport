@@ -1,43 +1,23 @@
 from rest_framework import serializers
+from django.utils import timezone
 from app_product.models import (
-    Category, Subcategory, Product,
-    ProductColor, ProductSize, ProductOption,
-    ProductImage, ProductMaterial ,Discount
+    Category, Product, ProductImage,
+    ProductColor, ProductSize, ProductMaterial,
+    ProductOption, Discount , DiscountCode
 )
+
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'is_active']
-
-
-class SubcategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Subcategory
-        fields = ['id', 'category', 'name', 'description', 'is_active']
+        fields = ['id', 'parent', 'name', 'description', 'is_active']
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
         fields = ['id', 'image_url', 'is_primary']
-
-
-class ProductSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Product
-        fields = ['id', 'category', 'subcategory', 'name', 'description', 'brand', 'gender', 'is_active', 'images']
-
-
-class SubcategoryDetailSerializer(serializers.ModelSerializer):
-    products = ProductSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Subcategory
-        fields = ['id', 'category', 'name', 'description', 'is_active', 'products']
 
 
 class ProductColorSerializer(serializers.ModelSerializer):
@@ -49,16 +29,7 @@ class ProductColorSerializer(serializers.ModelSerializer):
 class ProductSizeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductSize
-        fields = ['id', 'name', 'is_active']
-
-
-class ProductOptionSerializer(serializers.ModelSerializer):
-    color = ProductColorSerializer(read_only=True)
-    size = ProductSizeSerializer(read_only=True)
-
-    class Meta:
-        model = ProductOption
-        fields = ['id', 'color', 'size', 'retail_price', 'wholesale_price', 'stock', 'status']
+        fields = ['id', 'name']
 
 
 class ProductMaterialSerializer(serializers.ModelSerializer):
@@ -66,30 +37,74 @@ class ProductMaterialSerializer(serializers.ModelSerializer):
         model = ProductMaterial
         fields = ['id', 'name', 'description']
 
+
 class DiscountSerializer(serializers.ModelSerializer):
     class Meta:
         model = Discount
-        fields = ['id', 'product', 'type', 'value', 'start_at', 'end_at', 'status']
-        
+        fields = ['id', 'product', 'type', 'value', 'start_at', 'end_at']
 
-class ProductDetailSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True)
-    options = ProductOptionSerializer(many=True, read_only=True)
-    materials = ProductMaterialSerializer(many=True, read_only=True)
+class DiscountCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DiscountCode
+        fields = ['id', 'code', 'type', 'value', 'start_at', 'end_at',]
+
+
+class DiscountCodeApplySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DiscountCode
+        fields = ['id', 'code', 'type', 'value', 'is_used', 'used_at']
+
+
+class ProductOptionSerializer(serializers.ModelSerializer):
+    color = ProductColorSerializer(read_only=True)
+    size = ProductSizeSerializer(read_only=True)
+    material = ProductMaterialSerializer(read_only=True)
     active_discount = serializers.SerializerMethodField()
 
     class Meta:
-        model = Product
-        fields = ['id', 'category', 'subcategory', 'name', 'description', 'brand', 'gender', 'is_active', 'images', 'options', 'materials', 'active_discount']
+        model = ProductOption
+        fields = [
+            'id', 'color', 'size', 'material',
+            'retail_price', 'wholesale_price', 'wholesale_min_quantity',
+            'stock','is_active', 'active_discount'
+        ]
 
     def get_active_discount(self, obj):
-        from django.utils import timezone
+        now = timezone.now()
         discount = obj.discounts.filter(
-            status=True,
-            start_at__lte=timezone.now(),
-            end_at__gte=timezone.now()
+            start_at__lte=now, end_at__gte=now
         ).first()
         if discount:
             return DiscountSerializer(discount).data
         return None
+
+
+class ProductOptionCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductOption
+        fields = [
+            'id', 'product', 'color', 'size', 'material',
+            'retail_price', 'wholesale_price', 'wholesale_min_quantity',
+            'stock', 'is_active',
+        ]
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    images = ProductImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images']
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    images = ProductImageSerializer(many=True, read_only=True)
+    options = ProductOptionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images', 'options']
+
+
+
 
