@@ -52,6 +52,14 @@ class ProductOption(models.Model):
     stock = models.PositiveIntegerField(default=0)
     is_active= models.BooleanField(default=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['product', 'color', 'size', 'material'],
+                name='unique_product_option',
+            ),
+        ]
+
 
 class ProductImage(models.Model):
     product = models.ForeignKey(ProductOption, on_delete=models.CASCADE, related_name='images')
@@ -95,4 +103,3 @@ class DiscountCode(models.Model):
     used_at = models.DateTimeField(null=True, blank=True)
     start_at = models.DateTimeField()
     end_at = models.DateTimeField()
-   

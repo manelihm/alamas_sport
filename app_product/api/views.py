@@ -125,7 +125,7 @@ def category_delete(request, pk):
 )
 @api_view(['GET'])
 def product_list(request):
-    products = Product.objects.filter(is_active=True)
+    products = Product.objects.filter(is_active=True).order_by('id')
 
     category = request.GET.get('category')
     if category:

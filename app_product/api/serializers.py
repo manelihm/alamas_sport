@@ -17,7 +17,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ['id', 'image_url', 'is_primary']
+        fields = ['id', 'product', 'image_url', 'is_primary']
 
 
 class ProductColorSerializer(serializers.ModelSerializer):
@@ -90,21 +90,28 @@ class ProductOptionCreateSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True)
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images']
 
+    def get_images(self, obj):
+        images = ProductImage.objects.filter(product__product=obj)
+        return ProductImageSerializer(images, many=True).data
+
 
 class ProductDetailSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True)
+    images = serializers.SerializerMethodField()
     options = ProductOptionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
         fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images', 'options']
 
+    def get_images(self, obj):
+        images = ProductImage.objects.filter(product__product=obj)
+        return ProductImageSerializer(images, many=True).data
 
 
 
