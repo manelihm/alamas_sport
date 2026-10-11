@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view , permission_classes
 from rest_framework.response import Response
 from app_home.models import Banner ,HomeContent, TrendingProduct, CompanyInformation, CompanyInformationContent
-from app_home.api.serializers import BannerSerializer,HomeContentCreateSerializer,HomeContentSerializer, TrendingProductSerializer, TrendingProductCreateSerializer,CompanyInformationSerializer, CompanyInformationUpdateSerializer,CompanyInformationContentSerializer
+from app_home.api.serializers import BannerSerializer,HomeContentSerializer, TrendingProductSerializer, TrendingProductCreateSerializer,CompanyInformationSerializer, CompanyInformationUpdateSerializer,CompanyInformationContentSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions  import IsAdminUser
@@ -300,13 +300,13 @@ def home_content_list(request):
     method='post',
     operation_summary="Create a home page section",
     operation_description="Creates a new home content section, linked to a banner, discount, or category depending on type. Only accessible by admin users.",
-    request_body=HomeContentCreateSerializer,
+    request_body= HomeContentSerializer,
     responses={201: HomeContentSerializer, 400: "Invalid data"}
 )
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
 def home_content_create(request):
-    serializer = HomeContentCreateSerializer(data=request.data)
+    serializer =  HomeContentSerializer(data=request.data)
     if serializer.is_valid():
         content = serializer.save()
         return Response(HomeContentSerializer(content).data, status=status.HTTP_201_CREATED)
@@ -317,14 +317,14 @@ def home_content_create(request):
     method='put',
     operation_summary="Update a home page section",
     operation_description="Fully updates a home content section: title, sort_order, status, and the linked banner/discount/category id. Only accessible by admin users.",
-    request_body=HomeContentCreateSerializer,
+    request_body= HomeContentSerializer,
     responses={200: HomeContentSerializer, 400: "Invalid data", 404: "Not found"}
 )
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def home_content_update(request, pk):
     content = get_object_or_404(HomeContent, pk=pk)
-    serializer = HomeContentCreateSerializer(content, data=request.data)
+    serializer =  HomeContentSerializer(content, data=request.data)
     if serializer.is_valid():
         serializer.save()
         return Response(HomeContentSerializer(content).data)

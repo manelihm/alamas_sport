@@ -18,13 +18,9 @@ class BannerSerializer(serializers.ModelSerializer):
         ]
 
 
-class HomeContentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = HomeContent
-        fields = ['id', 'type', 'title', 'sort_order', 'is_active', 'banner', 'discount', 'category']
 
 
-class HomeContentCreateSerializer(serializers.ModelSerializer):
+class  HomeContentSerializer(serializers.ModelSerializer):
     class Meta:
         model = HomeContent
         fields = ['id', 'type', 'title', 'sort_order', 'is_active', 'banner', 'discount', 'category']

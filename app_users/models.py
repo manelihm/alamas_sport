@@ -99,7 +99,7 @@ class ProductFeedback(TimeStampedModel):
                 name="unique_user_product_feedback"
             ),
             models.CheckConstraint(
-                check=(
+             condition=(
                     ~models.Q(content="")
                     | models.Q(rating__isnull=False)
                 ),
