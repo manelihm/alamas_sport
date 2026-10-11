@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from users.models import Address, Favorite, ProductFeedback
+from app_users.models import Address, Favorite, ProductFeedback
 
 
 class AddressSerializer(serializers.ModelSerializer):

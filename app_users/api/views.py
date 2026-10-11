@@ -1,6 +1,9 @@
 from drf_yasg import openapi
-from users.models import Address, Favorite, ProductFeedback
-from users.api.serializers import (
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework.decorators import api_view , permission_classes
+from rest_framework.permissions import IsAuthenticated , IsAdminUser
+from app_users.models import Address, Favorite, ProductFeedback
+from app_users.api.serializers import (
     AddressSerializer,
     FavoriteSerializer, FavoriteCreateSerializer,
     ProductFeedbackSerializer, ProductFeedbackCreateSerializer,
