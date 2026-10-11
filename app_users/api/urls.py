@@ -16,7 +16,7 @@ Including another URLconf
 """
 
 from django.urls import path
-from app_home.api import views
+from app_users.api import views
 
 urlpatterns = [
 
