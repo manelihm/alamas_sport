@@ -42,7 +42,17 @@ urlpatterns = [
     path('feedbacks/<int:pk>/', views.feedback_admin_detail),
     path('feedbacks/<int:pk>/approve/', views.feedback_approve),
     path('feedbacks/<int:pk>/reject/', views.feedback_reject),
-    path('feedbacks/<int:pk>/admin-delete/', views.feedback_admin_delete)
+    path('feedbacks/<int:pk>/admin-delete/', views.feedback_admin_delete),
+    
+    path('product-requests/create/', views.product_request_create),
+    path('product-requests/mine/', views.product_request_my_list),
+    path('product-requests/mine/<int:pk>/', views.product_request_my_detail),
+    path('product-requests/mine/<int:pk>/delete/', views.product_request_my_delete),
+
+    path('product-requests/', views.product_request_admin_list),
+    path('product-requests/<int:pk>/', views.product_request_admin_detail),
+    path('product-requests/<int:pk>/change-status/', views.product_request_change_status),
+    path('product-requests/<int:pk>/convert/', views.product_request_convert),
 
 
   ]

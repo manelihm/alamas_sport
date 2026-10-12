@@ -109,3 +109,28 @@ class ProductFeedback(TimeStampedModel):
 
     def __str__(self):
         return f"{self.user} - {self.product}"
+
+
+class ProductRequest(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "در انتظار"
+        IN_REVIEW = "IN_REVIEW", "در حال بررسی"
+        APPROVED = "APPROVED", "تایید شده"
+        REJECTED = "REJECTED", "رد شده"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="product_requests"
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    admin_note = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.user}"

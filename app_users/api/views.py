@@ -2,12 +2,15 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view , permission_classes
 from rest_framework.permissions import IsAuthenticated , IsAdminUser
-from app_users.models import Address, Favorite, ProductFeedback
+from app_users.models import Address, Favorite, ProductFeedback ,ProductRequest
 from app_users.api.serializers import (
     AddressSerializer,
     FavoriteSerializer, FavoriteCreateSerializer,
-    ProductFeedbackSerializer, ProductFeedbackCreateSerializer,
+    ProductFeedbackSerializer, ProductFeedbackCreateSerializer,ProductRequestSerializer, ProductRequestCreateSerializer, ProductRequestStatusSerializer,
 )
+
+from app_product.api.serializers import ProductSerializer
+from app_product.models import Product
 
 
 
@@ -241,3 +244,119 @@ def feedback_admin_delete(request, pk):
     feedback = get_object_or_404(ProductFeedback, pk=pk)
     feedback.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+@swagger_auto_schema(method='post', operation_summary="Submit a product request", tags=['Product Request'],
+    operation_description="Logged-in user requests a new product to be added to the store.",
+    request_body=ProductRequestCreateSerializer,
+    responses={201: ProductRequestSerializer, 400: "Invalid data"})
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def product_request_create(request):
+    serializer = ProductRequestCreateSerializer(data=request.data)
+    if serializer.is_valid():
+        product_request = serializer.save(user=request.user)
+        return Response(ProductRequestSerializer(product_request).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(method='get', operation_summary="List my product requests", tags=['Product Request'],
+    responses={200: ProductRequestSerializer(many=True)})
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def product_request_my_list(request):
+    requests_qs = ProductRequest.objects.filter(user=request.user)
+    serializer = ProductRequestSerializer(requests_qs, many=True)
+    return Response({"requests": serializer.data})
+
+
+@swagger_auto_schema(method='get', operation_summary="Get my request detail", tags=['Product Request'],
+    responses={200: ProductRequestSerializer, 404: "Not found"})
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def product_request_my_detail(request, pk):
+    product_request = get_object_or_404(ProductRequest, pk=pk, user=request.user)
+    serializer = ProductRequestSerializer(product_request)
+    return Response(serializer.data)
+
+
+@swagger_auto_schema(method='delete', operation_summary="Delete my request", tags=['Product Request'],
+    operation_description="Only deletable while status is PENDING.",
+    responses={204: "Deleted successfully", 400: "No longer deletable", 404: "Not found"})
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def product_request_my_delete(request, pk):
+    product_request = get_object_or_404(ProductRequest, pk=pk, user=request.user)
+    if product_request.status != ProductRequest.Status.PENDING:
+        return Response({"error": "This request is already being processed and can no longer be deleted."}, status=status.HTTP_400_BAD_REQUEST)
+    product_request.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@swagger_auto_schema(method='get', operation_summary="List all product requests (admin)", tags=['Product Request'],
+    operation_description="Only accessible by admin users.",
+    manual_parameters=[
+        openapi.Parameter('status', openapi.IN_QUERY, description="PENDING, IN_REVIEW, APPROVED, or REJECTED", type=openapi.TYPE_STRING),
+    ],
+    responses={200: ProductRequestSerializer(many=True)})
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def product_request_admin_list(request):
+    requests_qs = ProductRequest.objects.all()
+    status_filter = request.GET.get('status')
+    if status_filter:
+        requests_qs = requests_qs.filter(status=status_filter)
+    serializer = ProductRequestSerializer(requests_qs, many=True)
+    return Response({"requests": serializer.data})
+
+
+@swagger_auto_schema(method='get', operation_summary="Get request detail (admin)", tags=['Product Request'],
+    responses={200: ProductRequestSerializer, 404: "Not found"})
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def product_request_admin_detail(request, pk):
+    product_request = get_object_or_404(ProductRequest, pk=pk)
+    serializer = ProductRequestSerializer(product_request)
+    return Response(serializer.data)
+
+
+@swagger_auto_schema(method='patch', operation_summary="Change request status", tags=['Product Request'],
+    operation_description="Only accessible by admin users.",
+    request_body=ProductRequestStatusSerializer,
+    responses={200: ProductRequestSerializer, 400: "Invalid data", 404: "Not found"})
+@api_view(['PATCH'])
+@permission_classes([IsAdminUser])
+def product_request_change_status(request, pk):
+    product_request = get_object_or_404(ProductRequest, pk=pk)
+    serializer = ProductRequestStatusSerializer(data=request.data)
+    if serializer.is_valid():
+        product_request.status = serializer.validated_data['status']
+        product_request.admin_note = serializer.validated_data.get('admin_note', product_request.admin_note)
+        product_request.save()
+        return Response(ProductRequestSerializer(product_request).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(method='post', operation_summary="Convert request into a product", tags=['Product Request'],
+    operation_description="Creates a new Product from an approved request. Only accessible by admin users.",
+    responses={201: ProductSerializer, 400: "Request must be approved first", 404: "Not found"})
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def product_request_convert(request, pk):
+    product_request = get_object_or_404(ProductRequest, pk=pk)
+    if product_request.status != ProductRequest.Status.APPROVED:
+        return Response({"error": "Only approved requests can be converted into a product."}, status=status.HTTP_400_BAD_REQUEST)
+
+    category_id = request.data.get('category')
+    if not category_id:
+        return Response({"error": "category field is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    product = Product.objects.create(
+        category_id=category_id,
+        name=product_request.title,
+        description=product_request.description,
+        is_active=True,
+    )
+    return Response(ProductSerializer(product).data, status=status.HTTP_201_CREATED)
