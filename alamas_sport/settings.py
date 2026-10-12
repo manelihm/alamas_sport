@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'app_auth',
     'app_users',
+    'app_cart',
 
     
 ]

@@ -339,24 +339,3 @@ def product_request_change_status(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@swagger_auto_schema(method='post', operation_summary="Convert request into a product", tags=['Product Request'],
-    operation_description="Creates a new Product from an approved request. Only accessible by admin users.",
-    responses={201: ProductSerializer, 400: "Request must be approved first", 404: "Not found"})
-@api_view(['POST'])
-@permission_classes([IsAdminUser])
-def product_request_convert(request, pk):
-    product_request = get_object_or_404(ProductRequest, pk=pk)
-    if product_request.status != ProductRequest.Status.APPROVED:
-        return Response({"error": "Only approved requests can be converted into a product."}, status=status.HTTP_400_BAD_REQUEST)
-
-    category_id = request.data.get('category')
-    if not category_id:
-        return Response({"error": "category field is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-    product = Product.objects.create(
-        category_id=category_id,
-        name=product_request.title,
-        description=product_request.description,
-        is_active=True,
-    )
-    return Response(ProductSerializer(product).data, status=status.HTTP_201_CREATED)

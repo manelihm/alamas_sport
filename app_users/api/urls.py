@@ -52,7 +52,7 @@ urlpatterns = [
     path('product-requests/', views.product_request_admin_list),
     path('product-requests/<int:pk>/', views.product_request_admin_detail),
     path('product-requests/<int:pk>/change-status/', views.product_request_change_status),
-    path('product-requests/<int:pk>/convert/', views.product_request_convert),
+    
 
 
   ]
