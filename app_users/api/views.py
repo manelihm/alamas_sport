@@ -248,7 +248,7 @@ def feedback_admin_delete(request, pk):
 
 
 
-@swagger_auto_schema(method='post', operation_summary="Submit a product request", tags=['Product Request'],
+@swagger_auto_schema(method='post', operation_summary="Submit a product request", 
     operation_description="Logged-in user requests a new product to be added to the store.",
     request_body=ProductRequestCreateSerializer,
     responses={201: ProductRequestSerializer, 400: "Invalid data"})
@@ -262,7 +262,7 @@ def product_request_create(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@swagger_auto_schema(method='get', operation_summary="List my product requests", tags=['Product Request'],
+@swagger_auto_schema(method='get', operation_summary="List my product requests", 
     responses={200: ProductRequestSerializer(many=True)})
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -272,7 +272,7 @@ def product_request_my_list(request):
     return Response({"requests": serializer.data})
 
 
-@swagger_auto_schema(method='get', operation_summary="Get my request detail", tags=['Product Request'],
+@swagger_auto_schema(method='get', operation_summary="Get my request detail", 
     responses={200: ProductRequestSerializer, 404: "Not found"})
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -282,7 +282,7 @@ def product_request_my_detail(request, pk):
     return Response(serializer.data)
 
 
-@swagger_auto_schema(method='delete', operation_summary="Delete my request", tags=['Product Request'],
+@swagger_auto_schema(method='delete', operation_summary="Delete my request", 
     operation_description="Only deletable while status is PENDING.",
     responses={204: "Deleted successfully", 400: "No longer deletable", 404: "Not found"})
 @api_view(['DELETE'])
@@ -295,7 +295,7 @@ def product_request_my_delete(request, pk):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@swagger_auto_schema(method='get', operation_summary="List all product requests (admin)", tags=['Product Request'],
+@swagger_auto_schema(method='get', operation_summary="List all product requests (admin)", 
     operation_description="Only accessible by admin users.",
     manual_parameters=[
         openapi.Parameter('status', openapi.IN_QUERY, description="PENDING, IN_REVIEW, APPROVED, or REJECTED", type=openapi.TYPE_STRING),
@@ -312,7 +312,7 @@ def product_request_admin_list(request):
     return Response({"requests": serializer.data})
 
 
-@swagger_auto_schema(method='get', operation_summary="Get request detail (admin)", tags=['Product Request'],
+@swagger_auto_schema(method='get', operation_summary="Get request detail (admin)", 
     responses={200: ProductRequestSerializer, 404: "Not found"})
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
@@ -322,7 +322,7 @@ def product_request_admin_detail(request, pk):
     return Response(serializer.data)
 
 
-@swagger_auto_schema(method='patch', operation_summary="Change request status", tags=['Product Request'],
+@swagger_auto_schema(method='patch', operation_summary="Change request status", 
     operation_description="Only accessible by admin users.",
     request_body=ProductRequestStatusSerializer,
     responses={200: ProductRequestSerializer, 400: "Invalid data", 404: "Not found"})
