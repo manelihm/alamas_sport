@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.validators import MinValueValidator
 
 class Category(models.Model):
     parent = models.ForeignKey(
@@ -17,10 +18,12 @@ class Category(models.Model):
 
 class Product(models.Model):
     category = models.ForeignKey(
-        Category,
-        on_delete=models.CASCADE,
-        related_name='products'
-    )
+    Category,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name='products'
+)
     name = models.CharField(max_length=50)
     description = models.TextField()
     brand = models.CharField(max_length=100, blank=True)
@@ -46,9 +49,22 @@ class ProductOption(models.Model):
     color = models.ForeignKey(ProductColor, on_delete=models.CASCADE, related_name="options")
     size = models.ForeignKey(ProductSize, on_delete=models.CASCADE, related_name="options")
     material = models.ForeignKey(ProductMaterial ,on_delete=models.CASCADE,related_name="options")
-    retail_price = models.DecimalField(max_digits=10, decimal_places=0)
-    wholesale_price = models.DecimalField(max_digits=10, decimal_places=0)
-    wholesale_min_quantity = models.PositiveIntegerField(default=1)
+    retail_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        validators=[MinValueValidator(0)]
+)
+
+    wholesale_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        validators=[MinValueValidator(0)]
+)
+
+    wholesale_min_quantity = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)]
+)
     stock = models.PositiveIntegerField(default=0)
     is_active= models.BooleanField(default=True)
 

@@ -1,4 +1,3 @@
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser
 from rest_framework import status
@@ -9,6 +8,16 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions import IsAuthenticated
 from app_product.models import DiscountCode
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.decorators import (
+    api_view,
+    permission_classes,
+    parser_classes,
+)
+
+
+from decimal import Decimal, InvalidOperation
+from django.db import IntegrityError ,transaction
 
 
 from app_product.models import (
@@ -18,8 +27,9 @@ from app_product.models import (
 )
 from app_product.api.serializers import (
     CategorySerializer, ProductSerializer, ProductDetailSerializer,
-    ProductImageSerializer, ProductColorSerializer, ProductSizeSerializer,
-    ProductMaterialSerializer, ProductOptionCreateSerializer, DiscountSerializer ,DiscountCodeSerializer, DiscountCodeApplySerializer
+    ProductColorSerializer, ProductSizeSerializer,
+    ProductMaterialSerializer, ProductOptionCreateSerializer, DiscountSerializer ,DiscountCodeSerializer, DiscountCodeApplySerializer ,ProductImageReadSerializer,
+    ProductImageUploadSerializer,
 )
 
 
@@ -109,52 +119,269 @@ def category_delete(request, pk):
 
 
 # ---------- Product ----------
-
 @swagger_auto_schema(
     method='get',
-    operation_summary="List products with filter and pagination",
-    operation_description="Returns a paginated list of active products with their images.",
+    operation_summary="List products with pagination",
+    operation_description=(
+        "Returns active products with optional category, "
+        "brand, and gender filters. 10 products per page."
+    ),
     manual_parameters=[
-        openapi.Parameter('category', openapi.IN_QUERY, description="Filter by category id", type=openapi.TYPE_INTEGER),
-        openapi.Parameter('brand', openapi.IN_QUERY, description="Filter by brand", type=openapi.TYPE_STRING),
-        openapi.Parameter('gender', openapi.IN_QUERY, description="Filter by gender", type=openapi.TYPE_STRING),
-        openapi.Parameter('search', openapi.IN_QUERY, description="Search by product name", type=openapi.TYPE_STRING),
-        openapi.Parameter('page', openapi.IN_QUERY, description="Page number", type=openapi.TYPE_INTEGER),
+        openapi.Parameter(
+            'category', openapi.IN_QUERY,
+            description="Filter by category ID",
+            type=openapi.TYPE_INTEGER,
+        ),
+        openapi.Parameter(
+            'brand', openapi.IN_QUERY,
+            description="Filter by brand",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            'gender', openapi.IN_QUERY,
+            description="Filter by gender",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            'page', openapi.IN_QUERY,
+            description="Page number",
+            type=openapi.TYPE_INTEGER,
+        ),
     ],
     responses={200: ProductSerializer(many=True)}
 )
 @api_view(['GET'])
 def product_list(request):
-    products = Product.objects.filter(is_active=True).order_by('id')
+    products = Product.objects.filter(
+        is_active=True
+    ).order_by('id')
 
-    category = request.GET.get('category')
+    category = request.query_params.get('category')
     if category:
         products = products.filter(category_id=category)
 
-    brand = request.GET.get('brand')
+    brand = request.query_params.get('brand')
     if brand:
         products = products.filter(brand__icontains=brand)
 
-    gender = request.GET.get('gender')
+    gender = request.query_params.get('gender')
     if gender:
-        products = products.filter(gender=gender)
-
-    search = request.GET.get('search')
-    if search:
-        products = products.filter(name__icontains=search)
+        products = products.filter(gender__iexact=gender)
 
     paginator = Paginator(products, 10)
-    page_number = request.GET.get('page', 1)
+    page_number = request.query_params.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
-    serializer = ProductSerializer(page_obj, many=True)
+    serializer = ProductSerializer(
+    page_obj.object_list,
+    many=True,
+    context={'request': request}
+)
     return Response({
         "count": paginator.count,
         "total_pages": paginator.num_pages,
         "current_page": page_obj.number,
-        "products": serializer.data
+        "products": serializer.data,
     })
 
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Advanced product search",
+    operation_description=(
+        "Search products by name, category, brand, gender, "
+        "color, size, material, wholesale or retail price range, "
+        "and active discount. Results are paginated."
+    ),
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'name': openapi.Schema(type=openapi.TYPE_STRING),
+            'category': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'brand': openapi.Schema(type=openapi.TYPE_STRING),
+            'gender': openapi.Schema(type=openapi.TYPE_STRING),
+            'color': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'size': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'material': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'price_type': openapi.Schema(
+                type=openapi.TYPE_STRING,
+                enum=['wholesale', 'retail'],
+                default='wholesale',
+            ),
+            'min_price': openapi.Schema(type=openapi.TYPE_NUMBER),
+            'max_price': openapi.Schema(type=openapi.TYPE_NUMBER),
+            'has_discount': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+            'page': openapi.Schema(
+                type=openapi.TYPE_INTEGER,
+                default=1,
+            ),
+        },
+    ),
+)
+@api_view(['POST'])
+def product_search(request):
+    data = request.data
+
+    products = Product.objects.filter(is_active=True)
+
+    # Basic filters
+    name = data.get('name')
+    if name:
+        products = products.filter(name__icontains=name)
+
+    category = data.get('category')
+    if category is not None:
+        products = products.filter(category_id=category)
+
+    brand = data.get('brand')
+    if brand:
+        products = products.filter(brand__icontains=brand)
+
+    gender = data.get('gender')
+    if gender:
+        products = products.filter(gender__iexact=gender)
+
+    # Product option filters
+    options = ProductOption.objects.filter(
+        is_active=True,
+        product__is_active=True,
+    )
+
+    color = data.get('color')
+    if color is not None:
+        options = options.filter(color_id=color)
+
+    size = data.get('size')
+    if size is not None:
+        options = options.filter(size_id=size)
+
+    material = data.get('material')
+    if material is not None:
+        options = options.filter(material_id=material)
+
+    # Price range
+    min_price = data.get('min_price')
+    max_price = data.get('max_price')
+    price_type = data.get('price_type', 'wholesale')
+
+    if price_type not in ('wholesale', 'retail'):
+        return Response(
+            {
+                'error': (
+                    'price_type must be wholesale or retail.'
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if min_price is not None or max_price is not None:
+        try:
+            min_value = (
+                Decimal(str(min_price))
+                if min_price is not None else None
+            )
+            max_value = (
+                Decimal(str(max_price))
+                if max_price is not None else None
+            )
+
+            if (
+                min_value is not None and min_value < 0
+            ) or (
+                max_value is not None and max_value < 0
+            ):
+                raise ValueError
+
+            if (
+                min_value is not None
+                and max_value is not None
+                and min_value > max_value
+            ):
+                return Response(
+                    {
+                        'error': (
+                            'min_price cannot exceed max_price.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        except (InvalidOperation, ValueError, TypeError):
+            return Response(
+                {'error': 'Enter valid non-negative prices.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        price_field = (
+            'wholesale_price'
+            if price_type == 'wholesale'
+            else 'retail_price'
+        )
+
+        if min_value is not None:
+            options = options.filter(
+                **{f'{price_field}__gte': min_value}
+            )
+
+        if max_value is not None:
+            options = options.filter(
+                **{f'{price_field}__lte': max_value}
+            )
+
+    # Discount filter
+    has_discount = data.get('has_discount')
+
+    if has_discount is not None:
+        if not isinstance(has_discount, bool):
+            return Response(
+                {'error': 'has_discount must be true or false.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+
+        discounted_ids = Discount.objects.filter(
+            start_at__lte=now,
+            end_at__gte=now,
+        ).values_list('product_id', flat=True)
+
+        if has_discount:
+            options = options.filter(id__in=discounted_ids)
+        else:
+            options = options.exclude(id__in=discounted_ids)
+
+    # Only restrict products when option filters were requested
+    option_filters = (
+        'color',
+        'size',
+        'material',
+        'min_price',
+        'max_price',
+        'has_discount',
+    )
+
+    if any(data.get(field) is not None for field in option_filters):
+        products = products.filter(
+            id__in=options.values('product_id')
+        )
+
+    # Pagination
+    products = products.order_by('id').distinct()
+
+    paginator = Paginator(products, 10)
+    page_number = data.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    serializer = ProductSerializer(
+        page_obj.object_list,
+        many=True,
+        context={'request': request}
+)
+    return Response({
+        'count': paginator.count,
+        'total_pages': paginator.num_pages,
+        'current_page': page_obj.number,
+        'products': serializer.data,
+    })
 
 @swagger_auto_schema(
     method='get',
@@ -165,7 +392,10 @@ def product_list(request):
 @api_view(['GET'])
 def product_detail(request, pk):
     product = get_object_or_404(Product, pk=pk, is_active=True)
-    serializer = ProductDetailSerializer(product)
+    serializer = ProductDetailSerializer(
+    product,
+    context={'request': request}
+)
     return Response(serializer.data)
 
 
@@ -181,7 +411,11 @@ def product_related(request, pk):
     related_products = Product.objects.filter(
         category=product.category, is_active=True
     ).exclude(id=product.id)
-    serializer = ProductSerializer(related_products, many=True)
+    serializer = ProductSerializer(
+        related_products,
+        many=True,
+        context={'request': request}
+)
     return Response({"related_products": serializer.data})
 
 
@@ -195,7 +429,10 @@ def product_related(request, pk):
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
 def product_create(request):
-    serializer = ProductSerializer(data=request.data)
+    serializer = ProductSerializer(
+        data=request.data,
+        context={'request': request}
+)
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -213,7 +450,11 @@ def product_create(request):
 @permission_classes([IsAdminUser])
 def product_update(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    serializer = ProductSerializer(product, data=request.data)
+    serializer = ProductSerializer(
+        product,
+        data=request.data,
+        context={'request': request}
+)
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
@@ -246,7 +487,10 @@ def product_change_status(request, pk):
     product = get_object_or_404(Product, pk=pk)
     product.is_active = not product.is_active
     product.save()
-    serializer = ProductSerializer(product)
+    serializer = ProductSerializer(
+        product,
+        context={'request': request}
+)
     return Response(serializer.data)
 
 
@@ -254,52 +498,98 @@ def product_change_status(request, pk):
 
 @swagger_auto_schema(
     method='post',
-    operation_summary="Add an image to a product",
-    operation_description="Uploads a new image for an existing product. Only accessible by admin users.",
-    request_body=ProductImageSerializer,
-    responses={201: ProductImageSerializer, 400: "Invalid data"}
+    operation_summary="Add an image to a product option",
+    operation_description=(
+        "Uploads an image for an existing ProductOption. "
+        "The product field must contain a ProductOption ID."
+    ),
+    consumes=['multipart/form-data'],
+    request_body=ProductImageUploadSerializer,
+    responses={
+        201: ProductImageReadSerializer,
+        400: "Invalid data",
+    },
 )
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
+@parser_classes([MultiPartParser, FormParser])
 def product_image_create(request):
-    serializer = ProductImageSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    serializer = ProductImageUploadSerializer(
+        data=request.data,
+        context={'request': request}
+    )
 
+    if serializer.is_valid():
+        image = serializer.save()
+
+        output = ProductImageReadSerializer(
+            image,
+            context={'request': request}
+        )
+
+        return Response(
+            output.data,
+            status=status.HTTP_201_CREATED
+        )
+
+    return Response(
+        serializer.errors,
+        status=status.HTTP_400_BAD_REQUEST
+    )
 
 @swagger_auto_schema(
     method='put',
-    operation_summary="Update a product image",
-    operation_description="Updates an existing product image. Only accessible by admin users.",
-    request_body=ProductImageSerializer,
-    responses={200: ProductImageSerializer, 400: "Invalid data", 404: "Image not found"}
+    operation_summary="Update a product option image",
+    consumes=['multipart/form-data'],
+    request_body=ProductImageUploadSerializer,
+    responses={
+        200: ProductImageReadSerializer,
+        400: "Invalid data",
+        404: "Image not found",
+    },
 )
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
+@parser_classes([MultiPartParser, FormParser])
 def product_image_update(request, pk):
     image = get_object_or_404(ProductImage, pk=pk)
-    serializer = ProductImageSerializer(image, data=request.data)
+
+    serializer = ProductImageUploadSerializer(
+        image,
+        data=request.data,
+        partial=True,
+        context={'request': request}
+    )
+
     if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        image = serializer.save()
 
+        output = ProductImageReadSerializer(
+            image,
+            context={'request': request}
+        )
 
+        return Response(output.data)
+
+    return Response(
+        serializer.errors,
+        status=status.HTTP_400_BAD_REQUEST
+    )
 @swagger_auto_schema(
     method='delete',
     operation_summary="Delete a product image",
-    operation_description="Deletes a single product image. Only accessible by admin users.",
-    responses={204: "Image deleted successfully", 404: "Image not found"}
+    responses={
+        204: "Image deleted successfully",
+        404: "Image not found",
+    },
 )
 @api_view(['DELETE'])
 @permission_classes([IsAdminUser])
 def product_image_delete(request, pk):
     image = get_object_or_404(ProductImage, pk=pk)
     image.delete()
-    return Response(status=status.HTTP_204_NO_CONTENT)
 
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 # ---------- Product Color ----------
 
@@ -416,18 +706,20 @@ def product_material_delete(request, pk):
 @permission_classes([IsAdminUser])
 def product_option_create(request):
     serializer = ProductOptionCreateSerializer(data=request.data)
-    if serializer.is_valid():
-        try:
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        with transaction.atomic():
             serializer.save()
-        except Exception:
-            return Response(
-                {"error": "This color, size, and material combination already exists for this product."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except IntegrityError:
+        return Response(
+            {"error": "This color, size, and material combination already exists for this product."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
 @swagger_auto_schema(
     method='put',
     operation_summary="Update a product option",
@@ -439,18 +731,24 @@ def product_option_create(request):
 @permission_classes([IsAdminUser])
 def product_option_update(request, pk):
     option = get_object_or_404(ProductOption, pk=pk)
-    serializer = ProductOptionCreateSerializer(option, data=request.data)
-    if serializer.is_valid():
-        try:
-            serializer.save()
-        except Exception:
-            return Response(
-                {"error": "This color, size, and material combination already exists for this product."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    serializer = ProductOptionCreateSerializer(
+        option,
+        data=request.data,
+        partial=True,
+    )
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    try:
+        with transaction.atomic():
+            serializer.save()
+    except IntegrityError:
+        return Response(
+            {"error": "This color, size, and material combination already exists for this product."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return Response(serializer.data)
 
 @swagger_auto_schema(
     method='delete',
@@ -477,13 +775,31 @@ def product_option_delete(request, pk):
 def product_option_update_stock(request, pk):
     option = get_object_or_404(ProductOption, pk=pk)
     stock = request.data.get('stock')
+
     if stock is None:
-        return Response({"error": "stock field is required"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "stock field is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        stock = int(stock)
+    except (TypeError, ValueError):
+        return Response(
+            {"error": "stock must be an integer."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if stock < 0:
+        return Response(
+            {"error": "stock cannot be negative."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     option.stock = stock
-    option.save()
+    option.save(update_fields=['stock'])
     serializer = ProductOptionCreateSerializer(option)
     return Response(serializer.data)
-
 
 @swagger_auto_schema(
     method='patch',
@@ -501,18 +817,42 @@ def product_option_update_price(request, pk):
     if retail_price is None and wholesale_price is None:
         return Response(
             {"error": "at least one of retail_price or wholesale_price is required"},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     if retail_price is not None:
+        try:
+            retail_price = Decimal(str(retail_price))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response(
+                {"error": "retail_price must be a valid number."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if retail_price < 0:
+            return Response(
+                {"error": "retail_price cannot be negative."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         option.retail_price = retail_price
+
     if wholesale_price is not None:
+        try:
+            wholesale_price = Decimal(str(wholesale_price))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response(
+                {"error": "wholesale_price must be a valid number."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if wholesale_price < 0:
+            return Response(
+                {"error": "wholesale_price cannot be negative."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         option.wholesale_price = wholesale_price
 
-    option.save()
+    option.save(update_fields=['retail_price', 'wholesale_price'])
     serializer = ProductOptionCreateSerializer(option)
     return Response(serializer.data)
-
 
 # ---------- Discount ----------
 
@@ -530,7 +870,11 @@ def discount_product_list(request):
         options__discounts__start_at__lte=now,
         options__discounts__end_at__gte=now
     ).distinct()
-    serializer = ProductSerializer(products, many=True)
+    serializer = ProductSerializer(
+        products,
+        many=True,
+        context={'request': request}
+)
     return Response({"discount_products": serializer.data})
 
 
@@ -642,36 +986,32 @@ def discount_code_list(request):
     serializer = DiscountCodeSerializer(codes, many=True)
     return Response({"discount_codes": serializer.data})
 
-@swagger_auto_schema(
-    method='post',
-    operation_summary="Apply a discount code",
-    operation_description="Validates and applies a discount code to the user's cart. The code must be active, within its valid date range, and not used before. Once applied, the code is marked as used and cannot be reused. Only accessible by logged-in users.",
-    manual_parameters=[
-        openapi.Parameter('code', openapi.IN_QUERY, description="The discount code to apply", type=openapi.TYPE_STRING, required=True),
-    ],
-    responses={200: DiscountCodeApplySerializer, 400: "Invalid, expired, or already used code", 404: "Code not found"}
-)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def discount_code_apply(request):
+    
     code_value = request.data.get('code')
     if not code_value:
         return Response({"error": "code field is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    discount_code = get_object_or_404(DiscountCode, code=code_value)
-
-    if discount_code.is_used:
-        return Response({"error": "This code has already been used."}, status=status.HTTP_400_BAD_REQUEST)
-
-    
     now = timezone.now()
-    if not (discount_code.start_at <= now <= discount_code.end_at):
-        return Response({"error": "This code is expired or not yet valid."}, status=status.HTTP_400_BAD_REQUEST)
 
-    discount_code.is_used = True
-    discount_code.used_by = request.user
-    discount_code.used_at = now
-    discount_code.save()
+    with transaction.atomic():
+        discount_code = DiscountCode.objects.select_for_update().filter(code=code_value).first()
+
+        if not discount_code:
+            return Response({"error": "Discount code not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if discount_code.is_used:
+            return Response({"error": "This code has already been used."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not (discount_code.start_at <= now <= discount_code.end_at):
+            return Response({"error": "This code is expired or not yet valid."}, status=status.HTTP_400_BAD_REQUEST)
+
+        discount_code.is_used = True
+        discount_code.used_by = request.user
+        discount_code.used_at = now
+        discount_code.save(update_fields=['is_used', 'used_by', 'used_at'])
 
     serializer = DiscountCodeApplySerializer(discount_code)
     return Response(serializer.data)

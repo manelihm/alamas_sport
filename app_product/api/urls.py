@@ -20,6 +20,9 @@ from app_product.api import views
 from django.urls import path
 from app_product.api import views
 
+from django.conf import settings
+from django.conf.urls.static import static
+
 urlpatterns = [
     # Category
     path('categories/', views.category_list),
@@ -75,3 +78,9 @@ urlpatterns = [
     path('discount-codes/<int:pk>/delete/', views.discount_code_delete),
     path('discount-codes/apply/', views.discount_code_apply),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
+    )
