@@ -29,7 +29,7 @@ from app_product.api.serializers import (
     CategorySerializer, ProductSerializer, ProductDetailSerializer,
     ProductColorSerializer, ProductSizeSerializer,
     ProductMaterialSerializer, ProductOptionCreateSerializer, DiscountSerializer ,DiscountCodeSerializer, DiscountCodeApplySerializer ,ProductImageReadSerializer,
-    ProductImageUploadSerializer,
+    ProductImageUploadSerializer,CategoryTreeSerializer
 )
 
 
@@ -42,7 +42,7 @@ from app_product.api.serializers import (
     manual_parameters=[
         openapi.Parameter('parent', openapi.IN_QUERY, description="Parent category id, or 'null' for root categories", type=openapi.TYPE_STRING),
     ],
-    responses={200: CategorySerializer(many=True)}
+    responses={200: CategoryTreeSerializer(many=True)}
 )
 @api_view(['GET'])
 def category_list(request):
@@ -52,7 +52,7 @@ def category_list(request):
         categories = categories.filter(parent__isnull=True)
     elif parent:
         categories = categories.filter(parent_id=parent)
-    serializer = CategorySerializer(categories, many=True)
+    serializer = CategoryTreeSerializer(categories, many=True)
     return Response({"data": serializer.data, "message": "Category list retrieved successfully"})
 
 

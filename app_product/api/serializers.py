@@ -30,7 +30,31 @@ class CategorySerializer(serializers.ModelSerializer):
             'description',
             'is_active'
         ]
+class CategoryTreeSerializer(serializers.ModelSerializer):
+    parent_name = serializers.CharField(
+        source='parent.name',
+        read_only=True,
+        allow_null=True
+    )
+    children = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Category
+        fields = [
+            'id',
+            'parent',
+            'parent_name',
+            'name',
+            'description',
+            'is_active',
+            'children'
+        ]
+
+    def get_children(self, obj):
+        children = obj.subcategories.filter(is_active=True)
+        return CategoryTreeSerializer(children, many=True).data
+
+        
 MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
 MAX_PRODUCT_IMAGE_WIDTH = 6000
 MAX_PRODUCT_IMAGE_HEIGHT = 6000
