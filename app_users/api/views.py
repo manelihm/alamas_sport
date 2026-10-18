@@ -21,7 +21,7 @@ from app_product.models import Product
 def address_list(request):
     addresses = Address.objects.filter(user=request.user)
     serializer = AddressSerializer(addresses, many=True)
-    return Response({"addresses": serializer.data})
+    return Response({"data": serializer.data, "message": "Addresses retrieved successfully"})
 
 
 @swagger_auto_schema(method='post', operation_summary="Add a new address", 
@@ -33,7 +33,7 @@ def address_create(request):
     serializer = AddressSerializer(data=request.data)
     if serializer.is_valid():
         address = serializer.save(user=request.user)
-        return Response(AddressSerializer(address).data, status=status.HTTP_201_CREATED)
+        return Response({"data": AddressSerializer(address).data, "message": "Address created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -47,7 +47,7 @@ def address_update(request, pk):
     serializer = AddressSerializer(address, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(AddressSerializer(address).data)
+        return Response({"data": AddressSerializer(address).data, "message": "Address updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -69,8 +69,7 @@ def address_set_default(request, pk):
     address = get_object_or_404(Address, pk=pk, user=request.user)
     address.is_default = True
     address.save()
-    return Response(AddressSerializer(address).data)
-
+    return Response({"data": AddressSerializer(address).data, "message": "Default address set successfully"})
 
 @swagger_auto_schema(method='get', operation_summary="List my favorites",
     responses={200: FavoriteSerializer(many=True)})
@@ -79,7 +78,7 @@ def address_set_default(request, pk):
 def favorite_list(request):
     favorites = Favorite.objects.filter(user=request.user)
     serializer = FavoriteSerializer(favorites, many=True)
-    return Response({"favorites": serializer.data})
+    return Response({"data": serializer.data, "message": "Favorites retrieved successfully"})
 
 
 @swagger_auto_schema(method='post', operation_summary="Add a product to favorites",
@@ -94,7 +93,7 @@ def favorite_create(request):
             favorite = serializer.save(user=request.user)
         except Exception:
             return Response({"error": "This product is already in your favorites."}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(FavoriteSerializer(favorite).data, status=status.HTTP_201_CREATED)
+        return Response({"data": FavoriteSerializer(favorite).data, "message": "Product added to favorites successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -114,7 +113,7 @@ def favorite_delete(request, pk):
 def feedback_my_list(request):
     feedbacks = ProductFeedback.objects.filter(user=request.user)
     serializer = ProductFeedbackSerializer(feedbacks, many=True)
-    return Response({"feedbacks": serializer.data})
+    return Response({"data": serializer.data, "message": "Your feedback retrieved successfully"})
 
 
 @swagger_auto_schema(method='get', operation_summary="List approved feedback for a product",
@@ -124,7 +123,7 @@ def feedback_my_list(request):
 def feedback_product_list(request, product_id):
     feedbacks = ProductFeedback.objects.filter(product_id=product_id, status='APPROVED')
     serializer = ProductFeedbackSerializer(feedbacks, many=True)
-    return Response({"feedbacks": serializer.data})
+    return Response({"data": serializer.data, "message": "Product feedback retrieved successfully"})
 
 
 @swagger_auto_schema(method='post', operation_summary="Submit feedback for a product",
@@ -140,7 +139,7 @@ def feedback_create(request):
             feedback = serializer.save(user=request.user)
         except Exception:
             return Response({"error": "You have already submitted feedback for this product."}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(ProductFeedbackSerializer(feedback).data, status=status.HTTP_201_CREATED)
+        return Response({"data": ProductFeedbackSerializer(feedback).data, "message": "Feedback submitted successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -151,7 +150,7 @@ def feedback_create(request):
 def feedback_my_detail(request, pk):
     feedback = get_object_or_404(ProductFeedback, pk=pk, user=request.user)
     serializer = ProductFeedbackSerializer(feedback)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Feedback retrieved successfully"})
 
 
 @swagger_auto_schema(method='put', operation_summary="Update my feedback",
@@ -167,7 +166,7 @@ def feedback_my_update(request, pk):
     serializer = ProductFeedbackCreateSerializer(feedback, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(ProductFeedbackSerializer(feedback).data)
+        return Response({"data": ProductFeedbackSerializer(feedback).data, "message": "Feedback updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -198,7 +197,7 @@ def feedback_admin_list(request):
     if status_filter:
         feedbacks = feedbacks.filter(status=status_filter)
     serializer = ProductFeedbackSerializer(feedbacks, many=True)
-    return Response({"feedbacks": serializer.data})
+    return Response({"data": serializer.data, "message": "Feedback list retrieved successfully"})
 
 
 @swagger_auto_schema(method='get', operation_summary="Get feedback detail (admin)",
@@ -208,7 +207,7 @@ def feedback_admin_list(request):
 def feedback_admin_detail(request, pk):
     feedback = get_object_or_404(ProductFeedback, pk=pk)
     serializer = ProductFeedbackSerializer(feedback)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Feedback retrieved successfully"})
 
 
 @swagger_auto_schema(method='patch', operation_summary="Approve feedback",
@@ -220,7 +219,7 @@ def feedback_approve(request, pk):
     feedback = get_object_or_404(ProductFeedback, pk=pk)
     feedback.status = 'APPROVED'
     feedback.save()
-    return Response(ProductFeedbackSerializer(feedback).data)
+    return Response({"data": ProductFeedbackSerializer(feedback).data, "message": "Feedback approved successfully"})
 
 
 @swagger_auto_schema(method='patch', operation_summary="Reject feedback",
@@ -232,8 +231,7 @@ def feedback_reject(request, pk):
     feedback = get_object_or_404(ProductFeedback, pk=pk)
     feedback.status = 'REJECTED'
     feedback.save()
-    return Response(ProductFeedbackSerializer(feedback).data)
-
+    return Response({"data": ProductFeedbackSerializer(feedback).data, "message": "Feedback rejected successfully"})
 
 @swagger_auto_schema(method='delete', operation_summary="Delete feedback (admin)",
     operation_description="Deletes inappropriate feedback. Only accessible by admin users.",
@@ -258,7 +256,7 @@ def product_request_create(request):
     serializer = ProductRequestCreateSerializer(data=request.data)
     if serializer.is_valid():
         product_request = serializer.save(user=request.user)
-        return Response(ProductRequestSerializer(product_request).data, status=status.HTTP_201_CREATED)
+        return Response({"data": ProductRequestSerializer(product_request).data, "message": "Product request submitted successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -269,8 +267,7 @@ def product_request_create(request):
 def product_request_my_list(request):
     requests_qs = ProductRequest.objects.filter(user=request.user)
     serializer = ProductRequestSerializer(requests_qs, many=True)
-    return Response({"requests": serializer.data})
-
+    return Response({"data": serializer.data, "message": "Your product requests retrieved successfully"})
 
 @swagger_auto_schema(method='get', operation_summary="Get my request detail", 
     responses={200: ProductRequestSerializer, 404: "Not found"})
@@ -279,8 +276,7 @@ def product_request_my_list(request):
 def product_request_my_detail(request, pk):
     product_request = get_object_or_404(ProductRequest, pk=pk, user=request.user)
     serializer = ProductRequestSerializer(product_request)
-    return Response(serializer.data)
-
+    return Response({"data": serializer.data, "message": "Product request retrieved successfully"})
 
 @swagger_auto_schema(method='delete', operation_summary="Delete my request", 
     operation_description="Only deletable while status is PENDING.",
@@ -309,8 +305,7 @@ def product_request_admin_list(request):
     if status_filter:
         requests_qs = requests_qs.filter(status=status_filter)
     serializer = ProductRequestSerializer(requests_qs, many=True)
-    return Response({"requests": serializer.data})
-
+    return Response({"data": serializer.data, "message": "Product requests retrieved successfully"})
 
 @swagger_auto_schema(method='get', operation_summary="Get request detail (admin)", 
     responses={200: ProductRequestSerializer, 404: "Not found"})
@@ -319,8 +314,7 @@ def product_request_admin_list(request):
 def product_request_admin_detail(request, pk):
     product_request = get_object_or_404(ProductRequest, pk=pk)
     serializer = ProductRequestSerializer(product_request)
-    return Response(serializer.data)
-
+    return Response({"data": serializer.data, "message": "Product request retrieved successfully"})
 
 @swagger_auto_schema(method='patch', operation_summary="Change request status", 
     operation_description="Only accessible by admin users.",
@@ -335,7 +329,7 @@ def product_request_change_status(request, pk):
         product_request.status = serializer.validated_data['status']
         product_request.admin_note = serializer.validated_data.get('admin_note', product_request.admin_note)
         product_request.save()
-        return Response(ProductRequestSerializer(product_request).data)
+        return Response({"data": ProductRequestSerializer(product_request).data, "message": "Product request status updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

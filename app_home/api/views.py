@@ -20,7 +20,7 @@ from rest_framework import status
 def banner_list(request):
     banners = Banner.objects.filter(is_active=True)
     serializer = BannerSerializer(banners, many=True)
-    return Response({"banner_list": serializer.data})
+    return Response({"data": serializer.data, "message": "Banners retrieved successfully"})
     
 
 @swagger_auto_schema(
@@ -36,7 +36,7 @@ def banner_create(request):
     serializer = BannerSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Banner created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @swagger_auto_schema(
@@ -53,7 +53,7 @@ def banner_update(request, pk):
     serializer = BannerSerializer(banner, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Banner updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @swagger_auto_schema(
@@ -82,7 +82,7 @@ def banner_change_status(request, pk):
     banner.is_active = not banner.is_active
     banner.save()
     serializer = BannerSerializer(banner)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Banner status updated successfully"})
 
 @swagger_auto_schema(
     method='patch',
@@ -106,8 +106,7 @@ def banner_display_order(request):
 def trending_product_list(request):
     trending = TrendingProduct.objects.filter(is_active=True).order_by('sort_order')
     serializer = TrendingProductSerializer(trending, many=True)
-    return Response({"trending_products": serializer.data})
-
+    return Response({"data": serializer.data, "message": "Trending products retrieved successfully"})
 
 
 
@@ -117,7 +116,7 @@ def trending_product_list(request):
 def trending_product_detail(request, pk):
     trending = get_object_or_404(TrendingProduct, pk=pk, is_active=True)
     serializer = TrendingProductSerializer(trending)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Trending product retrieved successfully"})
 
 
 @swagger_auto_schema(method='post', operation_summary="Add product to trending list", 
@@ -130,7 +129,7 @@ def trending_product_create(request):
     serializer = TrendingProductCreateSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Trending product created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -145,7 +144,7 @@ def trending_product_update(request, pk):
     serializer = TrendingProductCreateSerializer(trending, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Trending product updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -180,7 +179,7 @@ def trending_product_change_status(request, pk):
     trending = get_object_or_404(TrendingProduct, pk=pk)
     trending.is_active = not trending.is_active
     trending.save()
-    return Response(TrendingProductSerializer(trending).data)
+    return Response({"data": TrendingProductSerializer(trending).data, "message": "Trending product status updated successfully"})
 
 @swagger_auto_schema(method='get', operation_summary="Get company main information",
     operation_description="Returns the company's main info: title, description, logo, status.",
@@ -191,7 +190,7 @@ def company_information_detail(request):
     if not company:
         return Response({"error": "Company information not set yet."}, status=status.HTTP_404_NOT_FOUND)
     serializer = CompanyInformationSerializer(company)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Company information retrieved successfully"})
 
 
 @swagger_auto_schema(method='put', operation_summary="Update company main information",
@@ -205,7 +204,7 @@ def company_information_update(request):
     serializer = CompanyInformationUpdateSerializer(company, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(CompanyInformationSerializer(company).data)
+        return Response({"data": CompanyInformationSerializer(company).data, "message": "Company information updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -216,7 +215,7 @@ def company_information_update(request):
 def company_content_list(request):
     contents = CompanyInformationContent.objects.all().order_by('sort_order')
     serializer = CompanyInformationContentSerializer(contents, many=True)
-    return Response({"contents": serializer.data})
+    return Response({"data": serializer.data, "message": "Company content retrieved successfully"})
 
 
 @swagger_auto_schema(method='get', operation_summary="Get a text section detail",
@@ -225,7 +224,7 @@ def company_content_list(request):
 def company_content_detail(request, pk):
     content = get_object_or_404(CompanyInformationContent, pk=pk)
     serializer = CompanyInformationContentSerializer(content)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Company content retrieved successfully"})
 
 
 @swagger_auto_schema(method='post', operation_summary="Add a new text section",
@@ -239,7 +238,7 @@ def company_content_create(request):
     serializer = CompanyInformationContentSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save(company_information=company)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Company content created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -254,7 +253,7 @@ def company_content_update(request, pk):
     serializer = CompanyInformationContentSerializer(content, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Company content updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -293,8 +292,7 @@ def company_content_reorder(request):
 def home_content_list(request):
     contents = HomeContent.objects.all().order_by('sort_order')
     serializer = HomeContentSerializer(contents, many=True)
-    return Response({"home_contents": serializer.data})
-
+    return Response({"data": serializer.data, "message": "Home contents retrieved successfully"})
 
 @swagger_auto_schema(
     method='post',
@@ -310,7 +308,7 @@ def home_content_create(request):
     if serializer.is_valid():
         content = serializer.save()
         return Response(HomeContentSerializer(content).data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"data": HomeContentSerializer(content).data, "message": "Home content created successfully"}, status=status.HTTP_201_CREATED)
 
 
 @swagger_auto_schema(
@@ -371,5 +369,4 @@ def home_content_change_status(request, pk):
     content = get_object_or_404(HomeContent, pk=pk)
     content.is_active = not content.is_active
     content.save()
-    return Response(HomeContentSerializer(content).data)
-
+    return Response({"data": HomeContentSerializer(content).data, "message": "Home content status updated successfully"})

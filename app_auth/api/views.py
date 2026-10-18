@@ -95,7 +95,10 @@ def verify_registration_code(request):
 
     token = signing.dumps({"phone_number": phone_number, "purpose": "register"})
 
-    return Response({"verification_token": token})
+    return Response({
+    "data": {"verification_token": token},
+    "message": "Registration code verified successfully"
+})
 
 
 @swagger_auto_schema(
@@ -176,9 +179,12 @@ def login(request):
     refresh = RefreshToken.for_user(user)
 
     return Response({
+    "data": {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
-    })
+    },
+    "message": "Logged in successfully"
+})
 
 
 
@@ -279,9 +285,12 @@ def login_with_code(request):
     refresh = RefreshToken.for_user(user)
 
     return Response({
+    "data": {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
-    })
+    },
+    "message": "Logged in with code successfully"
+})
 
 
 @swagger_auto_schema(
@@ -383,8 +392,10 @@ def user_list(request):
             models.Q(phone_number__icontains=search) | models.Q(username__icontains=search)
         )
     serializer = UserListSerializer(users, many=True)
-    return Response({"users": serializer.data})
-
+    return Response({
+    "data": serializer.data,
+    "message": "Users retrieved successfully"
+})
 
 @swagger_auto_schema(
     method='post',
@@ -399,7 +410,13 @@ def user_create(request):
     serializer = UserCreateSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
-        return Response(UserDetailSerializer(user).data, status=status.HTTP_201_CREATED)
+        return Response(
+    {
+        "data": UserDetailSerializer(user).data,
+        "message": "User created successfully"
+    },
+    status=status.HTTP_201_CREATED
+)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -414,8 +431,10 @@ def user_create(request):
 def user_detail(request, pk):
     user = get_object_or_404(User, pk=pk)
     serializer = UserDetailSerializer(user)
-    return Response(serializer.data)
-
+    return Response({
+    "data": serializer.data,
+    "message": "User retrieved successfully"
+})
 
 @swagger_auto_schema(
     method='put',
@@ -431,7 +450,10 @@ def user_update(request, pk):
     serializer = UserUpdateSerializer(user, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(UserDetailSerializer(user).data)
+        return Response({
+        "data": UserDetailSerializer(user).data,
+        "message": "User updated successfully"
+})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -465,7 +487,10 @@ def user_change_status(request, pk):
         user.status = serializer.validated_data['status']
         user.is_active = (user.status != 'blocked')
         user.save()
-        return Response(UserDetailSerializer(user).data)
+        return Response({
+        "data": UserDetailSerializer(user).data,
+        "message": "User status updated successfully"
+})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -487,5 +512,8 @@ def user_change_role(request, pk):
         user.is_staff = role in ('admin', 'super_admin')
         user.is_superuser = (role == 'super_admin')
         user.save()
-        return Response(UserDetailSerializer(user).data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+        "data": UserDetailSerializer(user).data,
+        "message": "User role updated successfully"
+})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -53,7 +53,7 @@ def category_list(request):
     elif parent:
         categories = categories.filter(parent_id=parent)
     serializer = CategorySerializer(categories, many=True)
-    return Response({"category_list": serializer.data})
+    return Response({"data": serializer.data, "message": "Category list retrieved successfully"})
 
 
 @swagger_auto_schema(
@@ -66,7 +66,7 @@ def category_list(request):
 def category_detail(request, pk):
     category = get_object_or_404(Category, pk=pk, is_active=True)
     serializer = CategorySerializer(category)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Category retrieved successfully"})
 
 
 @swagger_auto_schema(
@@ -82,7 +82,7 @@ def category_create(request):
     serializer = CategorySerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Category created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -100,7 +100,7 @@ def category_update(request, pk):
     serializer = CategorySerializer(category, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Category updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -181,7 +181,8 @@ def product_list(request):
         "count": paginator.count,
         "total_pages": paginator.num_pages,
         "current_page": page_obj.number,
-        "products": serializer.data,
+        "data": serializer.data,
+        "message": "Product list retrieved successfully",
     })
 
 @swagger_auto_schema(
@@ -380,7 +381,8 @@ def product_search(request):
         'count': paginator.count,
         'total_pages': paginator.num_pages,
         'current_page': page_obj.number,
-        'products': serializer.data,
+        'data': serializer.data,
+        "message": "Products retrieved successfully",
     })
 
 @swagger_auto_schema(
@@ -396,8 +398,7 @@ def product_detail(request, pk):
     product,
     context={'request': request}
 )
-    return Response(serializer.data)
-
+    return Response({"data": serializer.data, "message": "Product retrieved successfully"})
 
 @swagger_auto_schema(
     method='get',
@@ -416,7 +417,7 @@ def product_related(request, pk):
         many=True,
         context={'request': request}
 )
-    return Response({"related_products": serializer.data})
+    return Response({"data": serializer.data, "message": "Related products retrieved successfully"})
 
 
 @swagger_auto_schema(
@@ -435,7 +436,7 @@ def product_create(request):
 )
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Product created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -457,7 +458,7 @@ def product_update(request, pk):
 )
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Product updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -491,7 +492,7 @@ def product_change_status(request, pk):
         product,
         context={'request': request}
 )
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Product status updated successfully"})
 
 
 # ---------- Product Image ----------
@@ -528,9 +529,10 @@ def product_image_create(request):
         )
 
         return Response(
-            output.data,
-            status=status.HTTP_201_CREATED
+        {"data": output.data, "message": "Product image created successfully"},
+        status=status.HTTP_201_CREATED
         )
+       
 
     return Response(
         serializer.errors,
@@ -569,7 +571,7 @@ def product_image_update(request, pk):
             context={'request': request}
         )
 
-        return Response(output.data)
+        return Response({"data": output.data, "message": "Product image updated successfully"})
 
     return Response(
         serializer.errors,
@@ -600,7 +602,7 @@ def product_color_create(request):
     serializer = ProductColorSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Product color created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -612,7 +614,7 @@ def product_color_update(request, pk):
     serializer = ProductColorSerializer(color, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Product color updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -634,7 +636,7 @@ def product_size_create(request):
     serializer = ProductSizeSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Product size created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -646,7 +648,7 @@ def product_size_update(request, pk):
     serializer = ProductSizeSerializer(size, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Product size updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -668,7 +670,7 @@ def product_material_create(request):
     serializer = ProductMaterialSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Product material created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -680,7 +682,7 @@ def product_material_update(request, pk):
     serializer = ProductMaterialSerializer(material, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Product material updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -718,7 +720,7 @@ def product_option_create(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response({"data": serializer.data, "message": "Product option created successfully"}, status=status.HTTP_201_CREATED)
     
 @swagger_auto_schema(
     method='put',
@@ -748,7 +750,7 @@ def product_option_update(request, pk):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Product option updated successfully"})
 
 @swagger_auto_schema(
     method='delete',
@@ -799,7 +801,7 @@ def product_option_update_stock(request, pk):
     option.stock = stock
     option.save(update_fields=['stock'])
     serializer = ProductOptionCreateSerializer(option)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Product option stock updated successfully"})
 
 @swagger_auto_schema(
     method='patch',
@@ -852,7 +854,7 @@ def product_option_update_price(request, pk):
 
     option.save(update_fields=['retail_price', 'wholesale_price'])
     serializer = ProductOptionCreateSerializer(option)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Product option prices updated successfully"})
 
 # ---------- Discount ----------
 
@@ -875,7 +877,7 @@ def discount_product_list(request):
         many=True,
         context={'request': request}
 )
-    return Response({"discount_products": serializer.data})
+    return Response({"data": serializer.data, "message": "Discount product list retrieved successfully"})
 
 
 @swagger_auto_schema(
@@ -891,7 +893,7 @@ def discount_create(request):
     serializer = DiscountSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Discount created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -909,7 +911,7 @@ def discount_update(request, pk):
     serializer = DiscountSerializer(discount, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Discount updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -940,7 +942,7 @@ def discount_code_create(request):
     serializer = DiscountCodeSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({"data": serializer.data, "message": "Discount code created successfully"}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @swagger_auto_schema(
@@ -957,7 +959,7 @@ def discount_code_update(request, pk):
     serializer = DiscountCodeSerializer(code, data=request.data)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response({"data": serializer.data, "message": "Discount code updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @swagger_auto_schema(
@@ -984,7 +986,7 @@ def discount_code_delete(request, pk):
 def discount_code_list(request):
     codes = DiscountCode.objects.all()
     serializer = DiscountCodeSerializer(codes, many=True)
-    return Response({"discount_codes": serializer.data})
+    return Response({"data": serializer.data, "message": "Discount code list retrieved successfully"})
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1014,4 +1016,4 @@ def discount_code_apply(request):
         discount_code.save(update_fields=['is_used', 'used_by', 'used_at'])
 
     serializer = DiscountCodeApplySerializer(discount_code)
-    return Response(serializer.data)
+    return Response({"data": serializer.data, "message": "Discount code applied successfully"})
