@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from app_auth.models import User
+from app_auth.models import User, PhoneVerification
 
 
 class SendVerificationCodeSerializer(serializers.Serializer):
