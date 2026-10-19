@@ -6,7 +6,7 @@ from django.utils import timezone
 from datetime import timedelta
 from drf_yasg.utils import swagger_auto_schema
 from django.db import models
-from app_auth.models import PhoneVerification
+from app_auth.models import User,UPhoneVerification
 from app_auth.api.serializers import SendVerificationCodeSerializer
 from app_auth.utils import generate_verification_code, send_sms, hash_code
 from django.core import signing
