@@ -37,23 +37,59 @@ from app_product.api.serializers import (
 
 @swagger_auto_schema(
     method='get',
-    operation_summary="List categories",
-    operation_description="Returns all active categories. Use ?parent=<id> to get subcategories of a category, or ?parent=null to get only root categories.",
+    operation_summary="List categories by level",
+    operation_description=(
+        "Returns main categories by default. "
+        "Pass ?parent=<id> to get direct subcategories."
+    ),
     manual_parameters=[
-        openapi.Parameter('parent', openapi.IN_QUERY, description="Parent category id, or 'null' for root categories", type=openapi.TYPE_STRING),
+        openapi.Parameter(
+            'parent',
+            openapi.IN_QUERY,
+            description="Parent category ID, or 'null' for main categories",
+            type=openapi.TYPE_STRING,
+            required=False,
+        ),
     ],
-    responses={200: CategoryTreeSerializer(many=True)}
+    responses={200: CategorySerializer(many=True)}
 )
 @api_view(['GET'])
 def category_list(request):
-    categories = Category.objects.filter(is_active=True)
-    parent = request.GET.get('parent')
-    if parent == 'null':
-        categories = categories.filter(parent__isnull=True)
-    elif parent:
-        categories = categories.filter(parent_id=parent)
-    serializer = CategoryTreeSerializer(categories, many=True)
-    return Response({"data": serializer.data, "message": "Category list retrieved successfully"})
+    parent_id = request.query_params.get('parent')
+
+    if parent_id is None or parent_id == 'null':
+        categories = Category.objects.filter(
+            parent__isnull=True,
+            is_active=True
+        ).order_by('id')
+
+    else:
+        if not parent_id.isdigit():
+            return Response(
+                {'error': 'parent must be a valid category ID.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        parent_category = get_object_or_404(
+            Category,
+            pk=int(parent_id),
+            is_active=True
+        )
+
+        categories = Category.objects.filter(
+            parent=parent_category,
+            is_active=True
+        ).order_by('id')
+
+    serializer = CategorySerializer(
+        categories,
+        many=True
+    )
+
+    return Response({
+        "data": serializer.data,
+        "message": "Category list retrieved successfully"
+    })
 
 
 @swagger_auto_schema(
