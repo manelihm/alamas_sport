@@ -47,12 +47,19 @@ class CategoryTreeSerializer(serializers.ModelSerializer):
             'name',
             'description',
             'is_active',
-            'children'
+            'children',
         ]
 
     def get_children(self, obj):
-        children = obj.subcategories.filter(is_active=True)
-        return CategoryTreeSerializer(children, many=True).data
+        children = obj.subcategories.filter(
+            is_active=True
+        ).order_by('id')
+
+        return CategoryTreeSerializer(
+            children,
+            many=True,
+            context=self.context
+        ).data
 
         
 MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB

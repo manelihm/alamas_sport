@@ -37,21 +37,27 @@ from app_product.api.serializers import (
 
 @swagger_auto_schema(
     method='get',
-    operation_summary="List categories by level",
+    operation_summary="List categories with nested subcategories",
     operation_description=(
-        "Returns main categories by default. "
-        "Pass ?parent=<id> to get direct subcategories."
+        "Returns root categories with all nested subcategories. "
+        "Omit parent or use ?parent=null to get the complete tree "
+        "starting from root categories. "
+        "Pass ?parent=<id> to get that category's direct children "
+        "with all their nested descendants."
     ),
     manual_parameters=[
         openapi.Parameter(
             'parent',
             openapi.IN_QUERY,
-            description="Parent category ID, or 'null' for main categories",
+            description=(
+                "Optional parent category ID. "
+                "Omit it or use 'null' for root categories and their trees."
+            ),
             type=openapi.TYPE_STRING,
             required=False,
         ),
     ],
-    responses={200: CategorySerializer(many=True)}
+    responses={200: CategoryTreeSerializer(many=True)}
 )
 @api_view(['GET'])
 def category_list(request):
@@ -81,17 +87,15 @@ def category_list(request):
             is_active=True
         ).order_by('id')
 
-    serializer = CategorySerializer(
+    serializer = CategoryTreeSerializer(
         categories,
         many=True
     )
 
     return Response({
         "data": serializer.data,
-        "message": "Category list retrieved successfully"
+        "message": "Category tree retrieved successfully"
     })
-
-
 @swagger_auto_schema(
     method='get',
     operation_summary="Get category detail",
