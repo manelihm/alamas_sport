@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 class Category(models.Model):
     parent = models.ForeignKey(
@@ -82,6 +84,13 @@ class ProductImage(models.Model):
     image_url = models.ImageField(upload_to='product_images')
     is_primary = models.BooleanField(default=False)
 
+@receiver(post_delete, sender=ProductImage)
+def delete_product_image_file(sender, instance, **kwargs):
+    """
+    Delete the physical image file when its database record is deleted.
+    """
+    if instance.image_url:
+        instance.image_url.delete(save=False)
 
 class Discount(models.Model):
     DISCOUNT_TYPE_CHOICES = [
