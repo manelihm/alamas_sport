@@ -14,6 +14,7 @@ from rest_framework.decorators import (
     permission_classes,
     parser_classes,
 )
+from django.db.models import Q
 
 
 from decimal import Decimal, InvalidOperation
@@ -264,11 +265,13 @@ def product_search(request):
 
     products = Product.objects.filter(is_active=True)
 
+   
     # Basic filters
     name = data.get('name')
     if name:
-        products = products.filter(name__icontains=name)
-
+        products = products.filter(
+            Q(name__icontains=name) | Q(brand__icontains=name)
+        )
     category = data.get('category')
     if category is not None:
         products = products.filter(category_id=category)
@@ -404,6 +407,36 @@ def product_search(request):
         products = products.filter(
             id__in=options.values('product_id')
         )
+# ===== Categories of matched products =====
+    search_term = data.get('name') or data.get('brand')
+    categories_data = []
+
+    if search_term:
+        matched_category_ids = (
+            products
+            .filter(category__isnull=False)
+            .values_list('category_id', flat=True)
+            .distinct()
+        )
+
+        categories_qs = (
+            Category.objects
+            .filter(
+                id__in=matched_category_ids,
+                is_active=True,
+            )
+            .order_by('name')
+        )
+
+        categories_data = CategorySerializer(
+            categories_qs,
+            many=True,
+            context={'request': request},
+        ).data
+ # ===== End categories =====
+
+
+
 
     # Pagination
     products = products.order_by('id').distinct()
@@ -422,9 +455,10 @@ def product_search(request):
         'total_pages': paginator.num_pages,
         'current_page': page_obj.number,
         'data': serializer.data,
+        'categories': categories_data,
         "message": "Products retrieved successfully",
     })
-
+    
 @swagger_auto_schema(
     method='get',
     operation_summary="Get product detail",
