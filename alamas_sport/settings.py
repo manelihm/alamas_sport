@@ -155,8 +155,7 @@ REST_FRAMEWORK = {
     },
 }
 SWAGGER_SETTINGS = {
-    'USE_SESSION_AUTH': True, 
-    'LOGIN_URL': '/accounts/login/', # فعلا همین باشه تا کارت راه بیفته
+    'USE_SESSION_AUTH': False, 
     'SECURITY_DEFINITIONS': {
         'Bearer': {
             'type': 'apiKey',
