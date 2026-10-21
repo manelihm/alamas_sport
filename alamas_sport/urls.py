@@ -36,16 +36,19 @@ schema_view = get_schema_view(
 
 
 urlpatterns = [
+    
     path("admin/", admin.site.urls),
+    path('accounts/', include('django.contrib.auth.urls')),
 
     path("api/home/", include("app_home.api.urls")),
-    path('api/product/', include('app_product.api.urls')),
-
     path(
         "swagger/",
         schema_view.with_ui("swagger", cache_timeout=0),
         name="schema-swagger-ui",
     ),
+    path('api/product/', include('app_product.api.urls')),
+
+    
     path('api/auth/', include('app_auth.api.urls')),
     path('api/users/', include('app_users.api.urls')),
 ]
