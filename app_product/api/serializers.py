@@ -177,15 +177,17 @@ class DiscountSerializer(serializers.ModelSerializer):
             )
 
         if discount_type == 'percentage' and value is not None:
-            if value < 0 or value > 100:
-                raise serializers.ValidationError(
-                    {"value": "Percentage discount must be between 0 and 100."}
-                )
+            if value <= 0 or value > 100:
+                raise serializers.ValidationError({
+                    "value": "Percentage discount must be greater than 0 and at most 100."
+                })
 
-        if discount_type == 'fixed' and value is not None and value < 0:
-            raise serializers.ValidationError(
-                {"value": "Fixed discount cannot be negative."}
-            )
+        if discount_type == 'fixed' and value is not None:
+            if value <= 0:
+                raise serializers.ValidationError({
+                    "value": "Fixed discount must be greater than 0."
+                })
+            
 
         return attrs
 class DiscountCodeSerializer(serializers.ModelSerializer):
@@ -205,22 +207,25 @@ class DiscountCodeSerializer(serializers.ModelSerializer):
             )
 
         if discount_type == 'percentage' and value is not None:
-            if value < 0 or value > 100:
-                raise serializers.ValidationError(
-                    {"value": "Percentage discount must be between 0 and 100."}
-                )
+            if value <= 0 or value > 100:
+                raise serializers.ValidationError({
+                    "value": "Percentage discount must be greater than 0 and at most 100."
+                })
 
-        if discount_type == 'fixed' and value is not None and value < 0:
-            raise serializers.ValidationError(
-                {"value": "Fixed discount cannot be negative."}
-            )
+        if discount_type == 'fixed' and value is not None:
+            if value <= 0:
+                raise serializers.ValidationError({
+                    "value": "Fixed discount must be greater than 0."
+                })
+            
 
         return attrs
 
-class DiscountCodeApplySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DiscountCode
-        fields = ['id', 'code', 'type', 'value', 'is_used', 'used_at']
+class DiscountCodeApplySerializer(serializers.Serializer):
+    code = serializers.CharField(
+        max_length=50,
+        trim_whitespace=True
+    )
 
 class ProductOptionSerializer(serializers.ModelSerializer):
     color = ProductColorSerializer(read_only=True)

@@ -37,6 +37,12 @@ class Cart(models.Model):
     )
     def __str__(self):
         return f"Cart #{self.pk} - {self.user}"
+
+    def is_expired(self):
+        return (
+            self.status == self.Status.ACTIVE
+            and timezone.now() >= self.expires_at
+        )
 class CartItem(models.Model):
     cart = models.ForeignKey(
         Cart,

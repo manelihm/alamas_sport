@@ -115,6 +115,13 @@ class DiscountCode(models.Model):
     ]
 
     code = models.CharField(max_length=50, unique=True)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="assigned_discount_codes"
+    )
     type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES)
     value = models.DecimalField(max_digits=10, decimal_places=0)
     is_used = models.BooleanField(default=False)

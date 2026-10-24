@@ -1062,32 +1062,59 @@ def discount_code_list(request):
     serializer = DiscountCodeSerializer(codes, many=True)
     return Response({"data": serializer.data, "message": "Discount code list retrieved successfully"})
 
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Validate a discount code",
+    operation_description=(
+        "Validates a discount code for the authenticated user. "
+        "Does not consume the code or apply it to a cart."
+    ),
+    request_body=DiscountCodeApplySerializer,
+    responses={200: "Code is valid", 400: "Invalid code"}
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def discount_code_apply(request):
-    
-    code_value = request.data.get('code')
-    if not code_value:
-        return Response({"error": "code field is required"}, status=status.HTTP_400_BAD_REQUEST)
+    serializer = DiscountCodeApplySerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
 
+    code_value = serializer.validated_data['code']
     now = timezone.now()
 
-    with transaction.atomic():
-        discount_code = DiscountCode.objects.select_for_update().filter(code=code_value).first()
+    discount_code = DiscountCode.objects.filter(code=code_value).first()
 
-        if not discount_code:
-            return Response({"error": "Discount code not found."}, status=status.HTTP_404_NOT_FOUND)
+    if not discount_code:
+        return Response(
+            {"error": "Discount code not found."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-        if discount_code.is_used:
-            return Response({"error": "This code has already been used."}, status=status.HTTP_400_BAD_REQUEST)
+    if discount_code.is_used:
+        return Response(
+            {"error": "This code has already been used."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-        if not (discount_code.start_at <= now <= discount_code.end_at):
-            return Response({"error": "This code is expired or not yet valid."}, status=status.HTTP_400_BAD_REQUEST)
+    if not (discount_code.start_at <= now <= discount_code.end_at):
+        return Response(
+            {"error": "This code is expired or not yet valid."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-        discount_code.is_used = True
-        discount_code.used_by = request.user
-        discount_code.used_at = now
-        discount_code.save(update_fields=['is_used', 'used_by', 'used_at'])
+    if (
+        discount_code.assigned_to_id is not None
+        and discount_code.assigned_to_id != request.user.pk
+    ):
+        return Response(
+            {"error": "This discount code is not assigned to your account."},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
-    serializer = DiscountCodeApplySerializer(discount_code)
-    return Response({"data": serializer.data, "message": "Discount code applied successfully"})
+    return Response({
+        "data": {
+            "code": discount_code.code,
+            "type": discount_code.type,
+            "value": discount_code.value
+        },
+        "message": "Discount code is valid."
+    }, status=status.HTTP_200_OK)
