@@ -545,7 +545,7 @@ def cart_history(request):
         401: "Authentication credentials were not provided or are invalid.",
         404: "Historical cart not found.",
     },
-    tags=["Cart"],
+
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
