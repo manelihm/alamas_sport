@@ -533,4 +533,41 @@ def cart_history(request):
     serializer = CartSerializer(carts, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
+@swagger_auto_schema(
+    method="get",
+    operation_summary="Get cart history detail",
+    operation_description=(
+        "Returns the details of a specific historical cart "
+        "belonging to the authenticated user."
+    ),
+    responses={
+        200: CartSerializer,
+        401: "Authentication credentials were not provided or are invalid.",
+        404: "Historical cart not found.",
+    },
+    tags=["Cart"],
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def cart_history_detail(request, cart_id):
+    try:
+        cart = Cart.objects.prefetch_related("items").get(
+            pk=cart_id,
+            user=request.user,
+        )
+    except Cart.DoesNotExist:
+        return Response(
+            {"detail": "Historical cart not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if cart.status == Cart.Status.ACTIVE:
+        return Response(
+            {"detail": "This cart is not part of the purchase history."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    serializer = CartSerializer(cart)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
 
