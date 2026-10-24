@@ -18,8 +18,19 @@ Including another URLconf
 from django.urls import path
 from app_product.api import views
 
-from django.urls import path
-from app_product.api import views
-urlpatterns = [
 
+urlpatterns = [
+    path('', views.cart_detail),
+    path('items/', views.add_cart_item),
+    path('items/<int:item_id>/', views.update_cart_item),
+    path('items/<int:item_id>/remove/', views.remove_cart_item),
+
+    path('apply-discount/', views.apply_discount_code),
+    path('remove-discount/', views.remove_discount_code),
+
+    path('summary/', views.cart_summary),
+
+    path('history/', views.cart_history),
+    path('history/<int:cart_id>/', views.cart_history_detail),
 ]
+

@@ -44,25 +44,42 @@ class Cart(models.Model):
             and timezone.now() >= self.expires_at
         )
 class CartItem(models.Model):
+    class PriceType(models.TextChoices):
+        RETAIL = "retail", "Retail"
+        WHOLESALE = "wholesale", "Wholesale"
+
     cart = models.ForeignKey(
         Cart,
         on_delete=models.CASCADE,
         related_name="items"
     )
+
     product_option = models.ForeignKey(
         "app_product.ProductOption",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="cart_items"
     )
-    quantity = models.PositiveIntegerField(
-        default=1
+
+    quantity = models.PositiveIntegerField(default=1)
+
+    price_type = models.CharField(
+        max_length=10,
+        choices=PriceType.choices,
+        default=PriceType.RETAIL
     )
-    created_at = models.DateTimeField(
-        auto_now_add=True
+
+    unit_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=0
     )
-    updated_at = models.DateTimeField(
-        auto_now=True
-    )
+
+    snapshot = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -70,5 +87,6 @@ class CartItem(models.Model):
                 name="unique_cart_item"
             )
         ]
+
     def __str__(self):
-        return f"{self.product_option} x{self.quantity}"
+        return f"Cart item #{self.pk} x{self.quantity}"
