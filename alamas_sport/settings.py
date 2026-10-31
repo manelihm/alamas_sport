@@ -40,14 +40,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
-    'app_home',
-    'app_product',
     'drf_yasg',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'app_auth',
+    'app_home',
+    'app_product',
     'app_users',
     'app_cart',
+    'app_order',
 
     
 ]
