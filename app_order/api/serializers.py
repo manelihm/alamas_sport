@@ -30,7 +30,6 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "discount_amount",
             "total_price",
             "created_at",
-            "shipping_method",
         ]
         read_only_fields = fields
 
@@ -46,6 +45,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "order_type",
             "status",
             "shipping_method_name_snapshot",
+            "shipping_method",
             "estimated_delivery_time_snapshot",
             "shipping_address_snapshot",
             "total_amount",
