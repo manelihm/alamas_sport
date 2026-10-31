@@ -225,14 +225,13 @@ def product_list(request):
         "data": serializer.data,
         "message": "Product list retrieved successfully",
     })
-
 @swagger_auto_schema(
     method='post',
     operation_summary="Advanced product search",
     operation_description=(
         "Search products by name, category, brand, gender, "
-        "color, size, material, wholesale or retail price range, "
-        "and active discount. Results are paginated."
+        "color, size, material, price range, and active discount. "
+        "Returns a maximum of 4 products without pagination."
     ),
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
@@ -252,10 +251,6 @@ def product_list(request):
             'min_price': openapi.Schema(type=openapi.TYPE_NUMBER),
             'max_price': openapi.Schema(type=openapi.TYPE_NUMBER),
             'has_discount': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-            'page': openapi.Schema(
-                type=openapi.TYPE_INTEGER,
-                default=1,
-            ),
         },
     ),
 )
@@ -263,24 +258,52 @@ def product_list(request):
 def product_search(request):
     data = request.data
 
+    # Normalize empty values
+    def clean(value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value if value else None
+        return value
+
+    name = clean(data.get('name'))
+    category = clean(data.get('category'))
+    brand = clean(data.get('brand'))
+    gender = clean(data.get('gender'))
+    color = clean(data.get('color'))
+    size = clean(data.get('size'))
+    material = clean(data.get('material'))
+    min_price = clean(data.get('min_price'))
+    max_price = clean(data.get('max_price'))
+    has_discount = data.get('has_discount')
+
+    search_values = [
+        name, category, brand, gender,
+        color, size, material, min_price,
+        max_price, has_discount,
+    ]
+
+    if all(value is None for value in search_values):
+        return Response({
+            'data': [],
+            'categories': [],
+            'message': 'Please provide at least one search filter.'
+        })
+
     products = Product.objects.filter(is_active=True)
 
-   
     # Basic filters
-    name = data.get('name')
     if name:
         products = products.filter(
-            Q(name__icontains=name) | Q(brand__icontains=name)
+            Q(name__icontains=name) |
+            Q(brand__icontains=name)
         )
-    category = data.get('category')
+
     if category is not None:
         products = products.filter(category_id=category)
 
-    brand = data.get('brand')
     if brand:
         products = products.filter(brand__icontains=brand)
 
-    gender = data.get('gender')
     if gender:
         products = products.filter(gender__iexact=gender)
 
@@ -290,30 +313,21 @@ def product_search(request):
         product__is_active=True,
     )
 
-    color = data.get('color')
     if color is not None:
         options = options.filter(color_id=color)
 
-    size = data.get('size')
     if size is not None:
         options = options.filter(size_id=size)
 
-    material = data.get('material')
     if material is not None:
         options = options.filter(material_id=material)
 
     # Price range
-    min_price = data.get('min_price')
-    max_price = data.get('max_price')
     price_type = data.get('price_type', 'wholesale')
 
     if price_type not in ('wholesale', 'retail'):
         return Response(
-            {
-                'error': (
-                    'price_type must be wholesale or retail.'
-                )
-            },
+            {'error': 'price_type must be wholesale or retail.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -323,6 +337,7 @@ def product_search(request):
                 Decimal(str(min_price))
                 if min_price is not None else None
             )
+
             max_value = (
                 Decimal(str(max_price))
                 if max_price is not None else None
@@ -341,11 +356,7 @@ def product_search(request):
                 and min_value > max_value
             ):
                 return Response(
-                    {
-                        'error': (
-                            'min_price cannot exceed max_price.'
-                        )
-                    },
+                    {'error': 'min_price cannot exceed max_price.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -372,9 +383,8 @@ def product_search(request):
             )
 
     # Discount filter
-    has_discount = data.get('has_discount')
-
     if has_discount is not None:
+
         if not isinstance(has_discount, bool):
             return Response(
                 {'error': 'has_discount must be true or false.'},
@@ -389,29 +399,37 @@ def product_search(request):
         ).values_list('product_id', flat=True)
 
         if has_discount:
-            options = options.filter(id__in=discounted_ids)
+            options = options.filter(
+                product_id__in=discounted_ids
+            )
         else:
-            options = options.exclude(id__in=discounted_ids)
+            options = options.exclude(
+                product_id__in=discounted_ids
+            )
 
-    # Only restrict products when option filters were requested
+    # Apply option filters to products
     option_filters = (
-        'color',
-        'size',
-        'material',
-        'min_price',
-        'max_price',
-        'has_discount',
+        color,
+        size,
+        material,
+        min_price,
+        max_price,
+        has_discount,
     )
 
-    if any(data.get(field) is not None for field in option_filters):
+    if any(value is not None for value in option_filters):
         products = products.filter(
             id__in=options.values('product_id')
         )
-# ===== Categories of matched products =====
-    search_term = data.get('name') or data.get('brand')
+
+
+    # Order and remove duplicates
+    products = products.order_by('id').distinct()
+
+    # Categories of matched products
     categories_data = []
 
-    if search_term:
+    if name or brand:
         matched_category_ids = (
             products
             .filter(category__isnull=False)
@@ -433,32 +451,21 @@ def product_search(request):
             many=True,
             context={'request': request},
         ).data
- # ===== End categories =====
 
-
-
-
-    # Pagination
-    products = products.order_by('id').distinct()
-
-    paginator = Paginator(products, 10)
-    page_number = data.get('page', 1)
-    page_obj = paginator.get_page(page_number)
+    # Return maximum 4 products
+    products = products[:4]
 
     serializer = ProductSerializer(
-        page_obj.object_list,
+        products,
         many=True,
-        context={'request': request}
-)
+        context={'request': request},
+    )
+
     return Response({
-        'count': paginator.count,
-        'total_pages': paginator.num_pages,
-        'current_page': page_obj.number,
         'data': serializer.data,
         'categories': categories_data,
-        "message": "Products retrieved successfully",
+        'message': 'Products retrieved successfully',
     })
-    
 @swagger_auto_schema(
     method='get',
     operation_summary="Get product detail",
