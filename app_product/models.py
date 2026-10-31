@@ -4,6 +4,65 @@ from django.core.validators import MinValueValidator
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
+import os
+from io import BytesIO
+
+from PIL import Image, ImageOps
+from django.core.files.base import ContentFile
+
+
+def resize_product_image(uploaded_file):
+    target_size = (1200, 1200)
+
+    try:
+        uploaded_file.seek(0)
+
+        with Image.open(uploaded_file) as original:
+            if original.format not in ("JPEG", "PNG", "WEBP"):
+                raise ValueError("unsupported image format.")
+
+            image = ImageOps.exif_transpose(original)
+            image.load()
+
+            if image.mode in ("RGBA", "LA") or (
+                image.mode == "P" and "transparency" in image.info
+            ):
+                image = image.convert("RGBA")
+                background = Image.new("RGBA", image.size, "white")
+                background.alpha_composite(image)
+                image = background.convert("RGB")
+            else:
+                image = image.convert("RGB")
+
+            resampling = getattr(Image, "Resampling", Image)
+            image.thumbnail(target_size, resampling.LANCZOS)
+
+            canvas = Image.new("RGB", target_size, "white")
+
+            x = (target_size[0] - image.width) // 2
+            y = (target_size[1] - image.height) // 2
+
+            canvas.paste(image, (x, y))
+
+            output = BytesIO()
+
+            canvas.save(
+                output,
+                format="JPEG",
+                quality=88,
+                optimize=True
+            )
+
+            filename = os.path.splitext(
+                os.path.basename(uploaded_file.name)
+            )[0] + ".jpg"
+
+            return filename, ContentFile(output.getvalue())
+
+    except (OSError, ValueError) as error:
+        raise ValueError(
+            "Invalid image format or unable to process the image."
+        ) from error
 class Category(models.Model):
     parent = models.ForeignKey(
         'self',
@@ -80,9 +139,27 @@ class ProductOption(models.Model):
 
 
 class ProductImage(models.Model):
-    product = models.ForeignKey(ProductOption, on_delete=models.CASCADE, related_name='images')
+    product = models.ForeignKey(
+        ProductOption,
+        on_delete=models.CASCADE,
+        related_name='images'
+    )
     image_url = models.ImageField(upload_to='product_images')
     is_primary = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if self.image_url and not self.image_url._committed:
+            filename, processed_image = resize_product_image(
+                self.image_url.file
+            )
+
+            self.image_url.save(
+                filename,
+                processed_image,
+                save=False
+            )
+
+        super().save(*args, **kwargs)
 
 @receiver(post_delete, sender=ProductImage)
 def delete_product_image_file(sender, instance, **kwargs):
