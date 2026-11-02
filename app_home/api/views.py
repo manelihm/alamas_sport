@@ -6,6 +6,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions  import IsAdminUser
 from rest_framework import status
+from django.shortcuts import get_object_or_404
 
 
 
@@ -200,13 +201,24 @@ def company_information_detail(request):
 @api_view(['PUT'])
 @permission_classes([IsAdminUser])
 def company_information_update(request):
-    company = CompanyInformation.objects.get_or_create(id=1)
-    serializer = CompanyInformationUpdateSerializer(company, data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response({"data": CompanyInformationSerializer(company).data, "message": "Company information updated successfully"})
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    company, _created = CompanyInformation.objects.get_or_create(id=1)
 
+    serializer = CompanyInformationUpdateSerializer(
+        company,
+        data=request.data
+    )
+
+    if serializer.is_valid():
+        company = serializer.save()
+        return Response({
+            "data": CompanyInformationSerializer(company).data,
+            "message": "Company information updated successfully"
+        })
+
+    return Response(
+        serializer.errors,
+        status=status.HTTP_400_BAD_REQUEST
+    )
 
 @swagger_auto_schema(method='get', operation_summary="List company text sections",
     operation_description="Returns text content sections ordered by sort_order.",

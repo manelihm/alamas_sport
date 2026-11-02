@@ -154,6 +154,9 @@ REST_FRAMEWORK = {
         'anon': '20/minute',
         'user': '60/minute',
     },
+    'DEFAULT_RENDERER_CLASSES': [
+    'rest_framework.renderers.JSONRenderer',
+],
 }
 SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False, 
