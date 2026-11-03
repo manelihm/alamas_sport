@@ -190,7 +190,7 @@ def get_valid_discount_code(code_value, user, lock=False):
         raise ValidationError(
             "This discount code is not assigned to you."
         )
-if lock:
+    if lock:
         DiscountCodeReservation.objects.filter(
             discount_code=code,
             status=DiscountCodeReservation.Status.ACTIVE,
