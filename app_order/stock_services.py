@@ -15,10 +15,6 @@ from .models import (
 
 @transaction.atomic
 def commit_order_stock(order_id):
-    """
-    Commit reserved stock after successful payment.
-    """
-
     order = Order.objects.select_for_update().filter(
         id=order_id
     ).first()
@@ -28,21 +24,35 @@ def commit_order_stock(order_id):
 
     now = timezone.now()
 
+    order_items = list(
+        order.items.select_for_update().order_by("id")
+    )
+
     reservations = list(
         StockReservation.objects.select_for_update()
-        .filter(
-            order_item__order=order,
-            status=StockReservation.Status.ACTIVE,
-            expires_at__gt=now,
-        )
+        .filter(order_item__order=order)
         .select_related("product_option")
         .order_by("id")
     )
 
-    if not reservations:
+    if not order_items or len(reservations) != len(order_items):
         raise ValidationError(
-            "No active stock reservations found."
+            "Order stock reservations are incomplete."
         )
+
+    for reservation in reservations:
+        if (
+            reservation.status != StockReservation.Status.ACTIVE
+            or reservation.expires_at <= now
+        ):
+            raise ValidationError(
+                "A stock reservation is expired or inactive."
+            )
+
+        if reservation.quantity != reservation.order_item.quantity:
+            raise ValidationError(
+                "Stock reservation quantity mismatch."
+            )
 
     for reservation in reservations:
         updated = ProductOption.objects.filter(
@@ -60,11 +70,11 @@ def commit_order_stock(order_id):
             )
 
         reservation.status = StockReservation.Status.COMMITTED
-        reservation.save(update_fields=["status", "updated_at"])
+        reservation.save(
+            update_fields=["status", "updated_at"]
+        )
 
     return order
-
-
 @transaction.atomic
 def release_order_stock(order_id, expired=False):
     """
