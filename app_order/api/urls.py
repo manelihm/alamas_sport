@@ -28,4 +28,10 @@ urlpatterns = [
     path('cancellations/<int:pk>/', views.cancellation_detail),
     path('shipping-methods/', views.shipping_method_list),
     path('shipping-methods/<int:pk>/', views.shipping_method_detail),
+    path(
+    'cancellations/<int:pk>/approve/',
+    views.cancellation_approve),
+    path(
+    'cancellations/<int:pk>/reject/',
+    views.cancellation_reject),
 ]

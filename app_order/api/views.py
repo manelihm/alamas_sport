@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
 from drf_yasg.utils import swagger_auto_schema
-
+from app_order.stock_services import release_order_stock
 from app_order.models import Order, CancellationRequest
 from app_order.api.serializers import (
     Order,
@@ -326,4 +326,92 @@ def shipping_method_detail(request, pk):
     return Response({
         "data": serializer.data,
         "message": "Shipping method retrieved successfully"
+    }, status=status.HTTP_200_OK)
+
+@swagger_auto_schema(
+    method="post",
+    operation_summary="Approve cancellation request",
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cancellation_approve(request, pk):
+    if not request.user.is_staff:
+        return Response(
+            {"message": "Admin access required."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    with transaction.atomic():
+        cancellation_request = get_object_or_404(
+            CancellationRequest.objects.select_for_update(),
+            pk=pk,
+        )
+
+        if cancellation_request.status != CancellationRequest.Status.PENDING:
+            return Response(
+                {"message": "This request has already been reviewed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order = Order.objects.select_for_update().get(
+            pk=cancellation_request.order_id
+        )
+
+        if order.status not in [
+            Order.Status.PENDING,
+            Order.Status.CONFIRMED,
+            Order.Status.IN_PROGRESS,
+        ]:
+            return Response(
+                {"message": "Order cannot be cancelled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        release_order_stock(order.id)
+
+        order.status = Order.Status.CANCELLED
+        order.save(update_fields=["status", "updated_at"])
+
+        cancellation_request.approve(
+            reviewer=request.user,
+            note=request.data.get("admin_note", ""),
+        )
+
+    return Response({
+        "message": "Cancellation approved successfully."
+    }, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
+    method="post",
+    operation_summary="Reject cancellation request",
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cancellation_reject(request, pk):
+    if not request.user.is_staff:
+        return Response(
+            {"message": "Admin access required."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    with transaction.atomic():
+        cancellation_request = get_object_or_404(
+            CancellationRequest.objects.select_for_update(),
+            pk=pk,
+        )
+
+        if cancellation_request.status != CancellationRequest.Status.PENDING:
+            return Response(
+                {"message": "This request has already been reviewed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cancellation_request.reject(
+            reviewer=request.user,
+            note=request.data.get("admin_note", ""),
+        )
+
+    return Response({
+        "message": "Cancellation rejected successfully."
     }, status=status.HTTP_200_OK)
