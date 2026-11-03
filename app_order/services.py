@@ -298,7 +298,7 @@ def calculate_checkout(
         if available_stock < quantity:
             raise ValidationError(
                 f"Insufficient stock for {option.product.name}."
-    )
+        )
         if cart_item.price_type == CartItem.PriceType.RETAIL:
             unit_price = money(option.retail_price)
 
