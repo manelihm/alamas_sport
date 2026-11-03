@@ -19,7 +19,8 @@ from rest_framework_simplejwt.tokens import RefreshToken as RefreshTokenObj
 from rest_framework_simplejwt.exceptions import TokenError
 from app_auth.api.serializers import LogoutSerializer
 from rest_framework.permissions import BasePermission
-
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 class IsSuperUser(BasePermission):
     def has_permission(self, request, view):

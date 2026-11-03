@@ -57,12 +57,19 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class PhoneVerification(models.Model):
     PURPOSE_CHOICES = [
-        ('register', 'Register'),
-        ('login', 'Login'),
-        ('passwordless_login', 'Passwordless Login'),
-        ('password_reset', 'Password Reset'),
+    ('register', 'Register'),
+    ('login', 'Login'),
+    ('passwordless_login', 'Passwordless Login'),
+    ('password_reset', 'Password Reset'),
+    ('phone_change', 'Phone Change'),
     ]
-
+    user = models.ForeignKey(
+    "app_auth.User",
+    on_delete=models.CASCADE,
+    null=True,
+    blank=True,
+    related_name="phone_verifications",
+    )
     phone = models.CharField(max_length=20)
     code_hash = models.CharField(max_length=255)
     purpose = models.CharField(max_length=30, choices=PURPOSE_CHOICES)

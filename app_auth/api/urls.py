@@ -16,7 +16,7 @@ Including another URLconf
 """
 
 from django.urls import path
-from app_auth.api import views
+from app_auth.api import views,account_views
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -37,4 +37,10 @@ urlpatterns = [
     path('users/<int:pk>/delete/', views.user_delete),
     path('users/<int:pk>/change-status/', views.user_change_status),
     path('users/<int:pk>/change-role/', views.user_change_role),
+    path("me/", account_views.my_account,),
+    path("me/update/", account_views.update_my_account, ),
+    path("me/change-password/", account_views.change_my_password),
+    path("me/request-phone-change/", account_views.request_phone_change),
+    path("me/verify-phone-change/", account_views.verify_phone_change),
+    path("me/deactivate/", account_views.deactivate_my_account),
 ]
