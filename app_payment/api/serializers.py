@@ -1,5 +1,11 @@
 from rest_framework import serializers
 from app_payment.models import Payment
+class CreatePaymentSerializer(serializers.Serializer):
+    order = serializers.IntegerField()
+    gateway = serializers.ChoiceField(
+        choices=Payment.Gateway.choices,
+        default=Payment.Gateway.OTHER,
+    )
 class PaymentSerializer(serializers.ModelSerializer):
     order_number = serializers.CharField(
         source="order.order_number",
@@ -21,14 +27,4 @@ class PaymentSerializer(serializers.ModelSerializer):
             "updated_at",
             "paid_at",
         ]
-        read_only_fields = [
-            "id",
-            "order_number",
-            "status",
-            "authority",
-            "transaction_id",
-            "tracking_code",
-            "created_at",
-            "updated_at",
-            "paid_at",
-        ]
+        read_only_fields = fields
