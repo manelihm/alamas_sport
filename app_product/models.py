@@ -126,9 +126,11 @@ class ProductOption(models.Model):
         default=1,
         validators=[MinValueValidator(1)]
 )
-    stock = models.PositiveIntegerField(default=0)
-    is_active= models.BooleanField(default=True)
+    
 
+    stock = models.PositiveIntegerField(default=0)
+    reserved_stock = models.PositiveIntegerField(default=0)
+    is_active= models.BooleanField(default=True)
     class Meta:
         constraints = [
             models.UniqueConstraint(

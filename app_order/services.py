@@ -3,14 +3,19 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
-
+from datetime import timedelta
 from rest_framework.exceptions import ValidationError
 
 from app_cart.models import Cart, CartItem
 from app_product.models import Discount, DiscountCode, ProductOption
 from app_users.models import Address
 
-from .models import Order, OrderItem, ShippingMethod
+from .models import (
+    Order,
+    OrderItem,
+    ShippingMethod,
+    StockReservation,
+)
 
 
 ZERO = Decimal("0")
@@ -267,11 +272,12 @@ def calculate_checkout(
         if quantity < 1:
             raise ValidationError("Invalid product quantity.")
 
-        if option.stock < quantity:
+        available_stock = option.stock - option.reserved_stock
+
+        if available_stock < quantity:
             raise ValidationError(
                 f"Insufficient stock for {option.product.name}."
-            )
-
+    )
         if cart_item.price_type == CartItem.PriceType.RETAIL:
             unit_price = money(option.retail_price)
 
@@ -424,17 +430,19 @@ def create_order(
         ),
     )
 
+    reservation_expiry = timezone.now() + timedelta(hours=24)
+
     for item in checkout["items"]:
         option = item["option"]
         quantity = item["quantity"]
 
         updated = ProductOption.objects.filter(
             id=option.id,
-            stock__gte=quantity,
+            stock__gte=F("reserved_stock") + quantity,
             is_active=True,
             product__is_active=True,
         ).update(
-            stock=F("stock") - quantity
+            reserved_stock=F("reserved_stock") + quantity
         )
 
         if updated != 1:
@@ -442,7 +450,7 @@ def create_order(
                 f"Insufficient stock for {option.product.name}."
             )
 
-        OrderItem.objects.create(
+        order_item = OrderItem.objects.create(
             order=order,
             product=option.product,
             product_option=option,
@@ -454,19 +462,11 @@ def create_order(
             total_price=item["total_price"],
         )
 
-    if checkout["discount_code"]:
-        code = checkout["discount_code"]
-
-        code.is_used = True
-        code.used_by = user
-        code.used_at = timezone.now()
-
-        code.save(
-            update_fields=[
-                "is_used",
-                "used_by",
-                "used_at",
-            ]
+        StockReservation.objects.create(
+            order_item=order_item,
+            product_option=option,
+            quantity=quantity,
+            expires_at=reservation_expiry,
         )
 
     cart.status = Cart.Status.ORDERED

@@ -286,7 +286,55 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.order.order_number} - Item {self.pk}"
+class StockReservation(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        COMMITTED = "COMMITTED", "Committed"
+        RELEASED = "RELEASED", "Released"
+        EXPIRED = "EXPIRED", "Expired"
 
+    order_item = models.OneToOneField(
+        "app_order.OrderItem",
+        on_delete=models.PROTECT,
+        related_name="stock_reservation",
+    )
+
+    product_option = models.ForeignKey(
+        "app_product.ProductOption",
+        on_delete=models.PROTECT,
+        related_name="stock_reservations",
+    )
+
+    quantity = models.PositiveIntegerField()
+
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+
+    expires_at = models.DateTimeField(db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=1),
+                name="stock_reservation_quantity_positive",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["status", "expires_at"],
+                name="stock_res_status_exp_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.order_item.order.order_number} - {self.status}"
 
 class CancellationRequest(models.Model):
     class Status(models.TextChoices):
