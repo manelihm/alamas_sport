@@ -6,8 +6,11 @@ from rest_framework.exceptions import ValidationError
 
 from app_product.models import ProductOption
 
-from .models import Order, StockReservation
-
+from .models import (
+    Order,
+    StockReservation,
+    DiscountCodeReservation,
+)
 
 @transaction.atomic
 def commit_order_stock(order_id):
@@ -22,18 +25,19 @@ def commit_order_stock(order_id):
     if not order:
         raise ValidationError("Order not found.")
 
-   now = timezone.now()
+    now = timezone.now()
 
     reservations = list(
         StockReservation.objects.select_for_update()
         .filter(
             order_item__order=order,
             status=StockReservation.Status.ACTIVE,
-                expires_at__gt=now,
-    )
+            expires_at__gt=now,
+        )
         .select_related("product_option")
         .order_by("id")
-)
+    )
+
     if not reservations:
         raise ValidationError(
             "No active stock reservations found."
@@ -63,8 +67,8 @@ def commit_order_stock(order_id):
 @transaction.atomic
 def release_order_stock(order_id, expired=False):
     """
-    Release active stock reservations after payment failure,
-    cancellation of an unpaid order, or expiration.
+    Release stock and discount reservations after
+    cancellation, payment failure, or expiration.
     """
 
     order = Order.objects.select_for_update().filter(
@@ -73,6 +77,8 @@ def release_order_stock(order_id, expired=False):
 
     if not order:
         raise ValidationError("Order not found.")
+
+    now = timezone.now()
 
     reservations = list(
         StockReservation.objects.select_for_update()
@@ -83,11 +89,6 @@ def release_order_stock(order_id, expired=False):
         .select_related("product_option")
         .order_by("id")
     )
-
-    if not reservations:
-        return order
-
-    now = timezone.now()
 
     for reservation in reservations:
         if expired and reservation.expires_at > now:
@@ -111,6 +112,27 @@ def release_order_stock(order_id, expired=False):
             else StockReservation.Status.RELEASED
         )
 
-        reservation.save(update_fields=["status", "updated_at"])
+        reservation.save(
+            update_fields=["status", "updated_at"]
+        )
+
+    discount_reservations = DiscountCodeReservation.objects.select_for_update().filter(
+        order=order,
+        status=DiscountCodeReservation.Status.ACTIVE,
+    )
+
+    if expired:
+        discount_reservations = discount_reservations.filter(
+            expires_at__lte=now
+        )
+
+    discount_reservations.update(
+        status=(
+            DiscountCodeReservation.Status.EXPIRED
+            if expired
+            else DiscountCodeReservation.Status.RELEASED
+        ),
+        updated_at=now,
+    )
 
     return order

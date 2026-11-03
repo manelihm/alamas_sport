@@ -10,11 +10,13 @@ from app_cart.models import Cart, CartItem
 from app_product.models import Discount, DiscountCode, ProductOption
 from app_users.models import Address
 
+from .stock_services import commit_order_stock
 from .models import (
     Order,
     OrderItem,
     ShippingMethod,
     StockReservation,
+    DiscountCodeReservation,
 )
 
 
@@ -188,7 +190,26 @@ def get_valid_discount_code(code_value, user, lock=False):
         raise ValidationError(
             "This discount code is not assigned to you."
         )
+if lock:
+        DiscountCodeReservation.objects.filter(
+            discount_code=code,
+            status=DiscountCodeReservation.Status.ACTIVE,
+            expires_at__lte=now,
+        ).update(
+            status=DiscountCodeReservation.Status.EXPIRED,
+            updated_at=now,
+        )
 
+    active_reservation = DiscountCodeReservation.objects.filter(
+        discount_code=code,
+        status=DiscountCodeReservation.Status.ACTIVE,
+        expires_at__gt=now,
+    ).exists()
+
+    if active_reservation:
+        raise ValidationError(
+            "This discount code is reserved for another order."
+        )
     return code
 
 
@@ -468,7 +489,37 @@ def create_order(
             quantity=quantity,
             expires_at=reservation_expiry,
         )
+# Complete free orders immediately without payment.
+    if order.final_amount == ZERO:
+        commit_order_stock(order.id)
 
+        order.status = Order.Status.CONFIRMED
+        order.save(update_fields=["status", "updated_at"])
+
+        # Consume the discount code immediately for free orders.
+        discount_code_obj = checkout["discount_code"]
+
+        if discount_code_obj:
+            discount_code_obj.is_used = True
+            discount_code_obj.used_by = user
+            discount_code_obj.used_at = timezone.now()
+            discount_code_obj.save(
+                update_fields=[
+                    "is_used",
+                    "used_by",
+                    "used_at",
+                ]
+            )
+
+    if (
+        order.final_amount > ZERO
+        and checkout["discount_code"]
+    ):
+        DiscountCodeReservation.objects.create(
+            order=order,
+            discount_code=checkout["discount_code"],
+            expires_at=reservation_expiry,
+        )
     cart.status = Cart.Status.ORDERED
     cart.save(
         update_fields=[

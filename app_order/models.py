@@ -336,6 +336,54 @@ class StockReservation(models.Model):
     def __str__(self):
         return f"{self.order_item.order.order_number} - {self.status}"
 
+class DiscountCodeReservation(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        CONSUMED = "CONSUMED", "Consumed"
+        RELEASED = "RELEASED", "Released"
+        EXPIRED = "EXPIRED", "Expired"
+
+    order = models.OneToOneField(
+        "app_order.Order",
+        on_delete=models.CASCADE,
+        related_name="discount_reservation",
+    )
+
+    discount_code = models.ForeignKey(
+        "app_product.DiscountCode",
+        on_delete=models.PROTECT,
+        related_name="reservations",
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+
+    expires_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["discount_code"],
+                condition=models.Q(status="ACTIVE"),
+                name="one_active_discount_reservation",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["status", "expires_at"],
+                name="discount_res_status_exp_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.discount_code.code} - {self.status}"
+        
 class CancellationRequest(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
