@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 
 from drf_yasg.utils import swagger_auto_schema
 from app_order.stock_services import release_order_stock
-from app_order.models import Order, CancellationRequest
+from app_order.models import Order, CancellationRequest,ShippingMethod
 from app_order.api.serializers import (
     Order,
     OrderSerializer,

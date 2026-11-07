@@ -2,12 +2,18 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view , permission_classes
 from rest_framework.permissions import IsAuthenticated , IsAdminUser
+from django.db.models import Count, Q
+from app_cart.models import Cart
+from app_order.models import Order
 from app_users.models import Address, Favorite, ProductFeedback ,ProductRequest
 from app_users.api.serializers import (
     AddressSerializer,
     FavoriteSerializer, FavoriteCreateSerializer,
-    ProductFeedbackSerializer, ProductFeedbackCreateSerializer,ProductRequestSerializer, ProductRequestCreateSerializer, ProductRequestStatusSerializer,
+    ProductFeedbackSerializer, ProductFeedbackCreateSerializer,ProductRequestSerializer, ProductRequestCreateSerializer, ProductRequestStatusSerializer,ProfileOverviewSerializer,
 )
+
+from django.utils import timezone
+from app_order.api.serializers import OrderSerializer
 from django.db import transaction
 from django.db import IntegrityError
 from app_product.api.serializers import ProductSerializer
@@ -22,7 +28,8 @@ from rest_framework.response import Response
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def address_list(request):
-    addresses = Address.objects.filter(user=request.user)
+    addresses = Address.objects.filter(
+    user=request.user).order_by("-is_default", "-created_at", "-id")
     serializer = AddressSerializer(addresses, many=True)
     return Response({"data": serializer.data, "message": "Addresses retrieved successfully"})
 
@@ -175,7 +182,9 @@ def address_set_default(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def favorite_list(request):
-    favorites = Favorite.objects.filter(user=request.user)
+    favorites = Favorite.objects.filter(
+    user=request.user).select_related(
+    "product").order_by("-created_at", "-id")
     serializer = FavoriteSerializer(favorites, many=True)
     return Response({"data": serializer.data, "message": "Favorites retrieved successfully"})
 
@@ -211,6 +220,14 @@ def favorite_create(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    if Favorite.objects.filter(
+        user=request.user,
+        product=product,).exists():
+        return Response(
+            {"detail": "This product is already in your favorites."},
+            status=status.HTTP_400_BAD_REQUEST,
+    )
+
     return Response(
         {
             "data": FavoriteSerializer(favorite).data,
@@ -233,7 +250,9 @@ def favorite_delete(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def feedback_my_list(request):
-    feedbacks = ProductFeedback.objects.filter(user=request.user)
+    feedbacks = ProductFeedback.objects.filter(
+    user=request.user).select_related(
+    "product").order_by("-created_at", "-id")
     serializer = ProductFeedbackSerializer(feedbacks, many=True)
     return Response({"data": serializer.data, "message": "Your feedback retrieved successfully"})
 
@@ -488,4 +507,72 @@ def product_request_change_status(request, pk):
         return Response({"data": ProductRequestSerializer(product_request).data, "message": "Product request status updated successfully"})
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@swagger_auto_schema(
+    method="get",
+    operation_summary="Get profile overview",
+    operation_description=(
+        "Returns the authenticated user's profile information, "
+        "default address, and activity counts."
+    ),
+    responses={
+        200: ProfileOverviewSerializer,
+        401: "Authentication required.",
+    },
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def profile_overview(request):
+    user = (
+        request.user.__class__.objects
+        .annotate(
+            addresses_count=Count("addresses", distinct=True),
+            favorites_count=Count("favorites", distinct=True),
+            feedbacks_count=Count("product_feedbacks", distinct=True),
+            product_requests_count=Count("product_requests", distinct=True),
+            orders_count=Count("orders", distinct=True),
+        )
+        .get(pk=request.user.pk)
+    )
+
+    default_address = Address.objects.filter(
+        user=request.user,
+        is_default=True,
+    ).first()
+
+    data = ProfileOverviewSerializer(user).data
+    data["default_address"] = (
+        AddressSerializer(default_address).data
+        if default_address else None
+    )
+
+    active_cart = Cart.objects.filter(
+        user=request.user,
+        status=Cart.Status.ACTIVE,
+        expires_at__gt=timezone.now(),
+    ).order_by("-created_at").first()
+
+    if active_cart:
+        cart_items = active_cart.items.all()
+        data["cart"] = {
+            "id": active_cart.id,
+            "items_count": sum(
+                item.quantity for item in cart_items
+            ),
+        }
+    else:
+        data["cart"] = None
+
+    recent_orders = Order.objects.filter(
+        user=request.user,
+    ).order_by("-created_at", "-id")[:5]
+
+    data["recent_orders"] = OrderSerializer(
+        recent_orders,
+        many=True,
+    ).data
+
+    return Response({
+        "data": data,
+        "message": "Profile overview retrieved successfully.",
+    })
 
