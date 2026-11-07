@@ -31,21 +31,26 @@ class ProductFeedbackSerializer(serializers.ModelSerializer):
 
 
 class ProductFeedbackCreateSerializer(serializers.ModelSerializer):
-    
-    class Meta:
-        model = ProductFeedback
-        fields = ['id', 'product', 'content', 'rating']
-
-        rating = serializers.IntegerField(
+    rating = serializers.IntegerField(
         required=False,
         allow_null=True,
         min_value=1,
         max_value=5,
     )
 
+    class Meta:
+        model = ProductFeedback
+        fields = ["id", "product", "content", "rating"]
+
     def validate(self, data):
-        if not data.get('content') and not data.get('rating'):
-            raise serializers.ValidationError("Provide at least a comment or a rating.")
+        content = data.get("content")
+        rating = data.get("rating")
+
+        if not content and rating is None:
+            raise serializers.ValidationError(
+                "Provide at least a comment or a rating."
+            )
+
         return data
 
 
@@ -76,8 +81,6 @@ class ProfileOverviewSerializer(serializers.ModelSerializer):
     product_requests_count = serializers.IntegerField(read_only=True)
     orders_count = serializers.IntegerField(read_only=True)
 
-    default_address = AddressSerializer(read_only=True)
-
     class Meta:
         model = User
         fields = [
@@ -94,5 +97,4 @@ class ProfileOverviewSerializer(serializers.ModelSerializer):
             "feedbacks_count",
             "product_requests_count",
             "orders_count",
-            "default_address",
         ]

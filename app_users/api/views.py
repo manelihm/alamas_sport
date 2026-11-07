@@ -212,21 +212,23 @@ def favorite_create(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        favorite = serializer.save(user=request.user)
-    except IntegrityError:
+    if Favorite.objects.filter(
+        user=request.user,
+        product=product,
+    ).exists():
         return Response(
             {"detail": "This product is already in your favorites."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if Favorite.objects.filter(
-        user=request.user,
-        product=product,).exists():
+    try:
+        with transaction.atomic():
+            favorite = serializer.save(user=request.user)
+    except IntegrityError:
         return Response(
             {"detail": "This product is already in your favorites."},
             status=status.HTTP_400_BAD_REQUEST,
-    )
+        )
 
     return Response(
         {
@@ -235,7 +237,6 @@ def favorite_create(request):
         },
         status=status.HTTP_201_CREATED,
     )
-
 @swagger_auto_schema(method='delete', operation_summary="Remove a product from favorites",
     responses={204: "Deleted successfully", 404: "Not found"})
 @api_view(['DELETE'])
