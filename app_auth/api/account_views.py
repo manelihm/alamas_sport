@@ -179,7 +179,6 @@ def request_phone_change(request):
     PhoneVerification.objects.filter(
     user=user,
     purpose="phone_change",
-    phone=new_phone,
     ).delete()
 
     PhoneVerification.objects.create(

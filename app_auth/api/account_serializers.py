@@ -33,7 +33,7 @@ class MyAccountUpdateSerializer(serializers.ModelSerializer):
             "username": {
                 "required": False,
                 "allow_null": True,
-                "allow_blank": True,
+                "allow_blank": False,
             },
             "first_name": {
                 "required": False,
@@ -78,10 +78,13 @@ class RequestPhoneChangeSerializer(serializers.Serializer):
         trim_whitespace=False,
     )
     def validate_new_phone_number(self, value):
+        value = value.strip()
+
         if User.objects.filter(phone_number=value).exists():
             raise serializers.ValidationError(
-                "This phone number is already in use."
-            )
+                    "This phone number is already in use."
+        )
+
         return value
 class VerifyPhoneChangeSerializer(serializers.Serializer):
     code = serializers.CharField(

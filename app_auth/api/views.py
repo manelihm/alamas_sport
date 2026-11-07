@@ -43,6 +43,9 @@ def send_verification_code(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     phone_number = serializer.validated_data['phone_number']
+    PhoneVerification.objects.filter(
+    phone=phone_number,
+    purpose="register",).delete()
     code = generate_verification_code()
 
     PhoneVerification.objects.create(
@@ -171,8 +174,11 @@ def login(request):
     if user is None or not user.check_password(password):
         return Response({"error": "Invalid phone number/username or password."}, status=status.HTTP_400_BAD_REQUEST)
 
-    if not user.is_active:
-        return Response({"error": "This account is inactive."}, status=status.HTTP_400_BAD_REQUEST)
+    if not user.is_active or user.status != "active":
+        return Response(
+            {"error": "This account is inactive or blocked."},
+            status=status.HTTP_400_BAD_REQUEST,
+    )
 
     user.last_login_at = timezone.now()
     user.save(update_fields=['last_login_at'])
@@ -226,6 +232,9 @@ def send_login_code(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     phone_number = serializer.validated_data['phone_number']
+    PhoneVerification.objects.filter(
+    phone=phone_number,
+    purpose="passwordless_login",).delete()
     code = generate_verification_code()
 
     PhoneVerification.objects.create(
@@ -277,7 +286,7 @@ def login_with_code(request):
     verification.delete()
 
     user = User.objects.filter(phone_number=phone_number, is_phone_verified=True).first()
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or user.status != "active":
         return Response({"error": "This account is not available."}, status=status.HTTP_400_BAD_REQUEST)
 
     user.last_login_at = timezone.now()
@@ -308,6 +317,9 @@ def request_password_reset(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     phone_number = serializer.validated_data['phone_number']
+    PhoneVerification.objects.filter(
+    phone=phone_number,
+    purpose="password_reset",).delete()
     code = generate_verification_code()
 
     PhoneVerification.objects.create(
@@ -486,8 +498,8 @@ def user_change_status(request, pk):
     serializer = UserStatusSerializer(data=request.data)
     if serializer.is_valid():
         user.status = serializer.validated_data['status']
-        user.is_active = (user.status != 'blocked')
-        user.save()
+        user.is_active = (user.status == "active")
+        user.save(update_fields=["status", "is_active"])
         return Response({
         "data": UserDetailSerializer(user).data,
         "message": "User status updated successfully"
