@@ -258,15 +258,33 @@ def feedback_my_list(request):
     return Response({"data": serializer.data, "message": "Your feedback retrieved successfully"})
 
 
-@swagger_auto_schema(method='get', operation_summary="List approved feedback for a product",
-    operation_description="Public endpoint. Only shows approved feedback.",
-    responses={200: ProductFeedbackSerializer(many=True)})
+@swagger_auto_schema(
+    method='get',
+    operation_summary="List approved feedback for a product",
+    operation_description="Public endpoint. Only shows approved feedback, ordered from newest to oldest.",
+    responses={200: ProductFeedbackSerializer(many=True)},
+)
 @api_view(['GET'])
 def feedback_product_list(request, product_id):
-    feedbacks = ProductFeedback.objects.filter(product_id=product_id, status='APPROVED')
-    serializer = ProductFeedbackSerializer(feedbacks, many=True)
-    return Response({"data": serializer.data, "message": "Product feedback retrieved successfully"})
+    feedbacks = ProductFeedback.objects.filter(
+        product_id=product_id,
+        status='APPROVED',
+    ).select_related(
+        "user"
+    ).order_by(
+        "-created_at",
+        "-id",
+    )
 
+    serializer = ProductFeedbackSerializer(
+        feedbacks,
+        many=True,
+    )
+
+    return Response({
+        "data": serializer.data,
+        "message": "Product feedback retrieved successfully",
+    })
 
 @swagger_auto_schema(
     method="post",
@@ -326,22 +344,82 @@ def feedback_my_detail(request, pk):
     return Response({"data": serializer.data, "message": "Feedback retrieved successfully"})
 
 
-@swagger_auto_schema(method='put', operation_summary="Update my feedback",
+@swagger_auto_schema(
+    method='put',
+    operation_summary="Update my feedback",
     operation_description="Only editable while status is still PENDING.",
     request_body=ProductFeedbackCreateSerializer,
-    responses={200: ProductFeedbackSerializer, 400: "Invalid data or no longer editable", 404: "Not found"})
+    responses={
+        200: ProductFeedbackSerializer,
+        400: "Invalid data, duplicate feedback, or no longer editable",
+        404: "Not found",
+    },
+)
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def feedback_my_update(request, pk):
-    feedback = get_object_or_404(ProductFeedback, pk=pk, user=request.user)
-    if feedback.status != 'PENDING':
-        return Response({"error": "This feedback has already been reviewed and can no longer be edited."}, status=status.HTTP_400_BAD_REQUEST)
-    serializer = ProductFeedbackCreateSerializer(feedback, data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response({"data": ProductFeedbackSerializer(feedback).data, "message": "Feedback updated successfully"})
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    feedback = get_object_or_404(
+        ProductFeedback,
+        pk=pk,
+        user=request.user,
+    )
 
+    if feedback.status != 'PENDING':
+        return Response(
+            {
+                "error": "This feedback has already been reviewed and can no longer be edited."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    serializer = ProductFeedbackCreateSerializer(
+        feedback,
+        data=request.data,
+    )
+
+    serializer.is_valid(raise_exception=True)
+
+    product = serializer.validated_data.get(
+        "product",
+        feedback.product,
+    )
+
+    if not product.is_active:
+        return Response(
+            {"error": "This product is not available."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    duplicate_feedback = ProductFeedback.objects.filter(
+        user=request.user,
+        product=product,
+    ).exclude(pk=feedback.pk).exists()
+
+    if duplicate_feedback:
+        return Response(
+            {
+                "error": "You have already submitted feedback for this product."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        with transaction.atomic():
+            serializer.save()
+    except IntegrityError:
+        return Response(
+            {
+                "error": "You have already submitted feedback for this product."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    feedback.refresh_from_db()
+
+    return Response({
+        "data": ProductFeedbackSerializer(feedback).data,
+        "message": "Feedback updated successfully",
+    })
 
 @swagger_auto_schema(method='delete', operation_summary="Delete my feedback",
     operation_description="Only deletable while status is still PENDING.",

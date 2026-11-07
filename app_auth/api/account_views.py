@@ -15,9 +15,14 @@ from rest_framework.decorators import (
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
+from app_auth.utils import revoke_user_refresh_tokens
 from app_auth.models import User, PhoneVerification
-from app_auth.utils import generate_verification_code, hash_code, send_sms
+from app_auth.utils import (
+    generate_verification_code,
+    hash_code,
+    send_sms,
+    revoke_user_refresh_tokens,
+)
 from app_auth.utils import verify_code as check_code
 
 from app_auth.api.account_serializers import (
@@ -125,11 +130,15 @@ def change_my_password(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user.set_password(serializer.validated_data["new_password"])
-    user.save(update_fields=["password"])
+    with transaction.atomic():
+        user.set_password(
+            serializer.validated_data["new_password"]
+    )
+        user.save(update_fields=["password"])
 
-    return Response({
-        "message": "Password changed successfully.",
+        revoke_user_refresh_tokens(user)
+        return Response({
+            "message": "Password changed successfully.",
     })
 
 
@@ -321,10 +330,15 @@ def deactivate_my_account(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user.status = "inactive"
-    user.is_active = False
-    user.save(update_fields=["status", "is_active"])
+    with transaction.atomic():
+        user.status = "inactive"
+        user.is_active = False
 
-    return Response({
-        "message": "Account deactivated successfully.",
+        user.save(
+            update_fields=["status", "is_active"]
+        )
+
+        revoke_user_refresh_tokens(user)
+        return Response({
+            "message": "Account deactivated successfully.",
     })

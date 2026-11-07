@@ -1,5 +1,6 @@
 from rest_framework.decorators import api_view, permission_classes
 from drf_yasg import openapi
+from django.db import transaction
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
@@ -378,12 +379,14 @@ def reset_password(request):
     except DjangoValidationError as e:
         return Response({"new_password": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
 
-    user.set_password(new_password)
-    user.save()
+    with transaction.atomic():
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
 
-    verification.delete()
+        revoke_user_refresh_tokens(user)
 
-    return Response({"message": "Password reset successfully."})
+        verification.delete()
+        return Response({"message": "Password reset successfully."})
 
 
 @swagger_auto_schema(
