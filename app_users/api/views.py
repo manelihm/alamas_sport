@@ -8,7 +8,8 @@ from app_users.api.serializers import (
     FavoriteSerializer, FavoriteCreateSerializer,
     ProductFeedbackSerializer, ProductFeedbackCreateSerializer,ProductRequestSerializer, ProductRequestCreateSerializer, ProductRequestStatusSerializer,
 )
-
+from django.db import transaction
+from django.db import IntegrityError
 from app_product.api.serializers import ProductSerializer
 from app_product.models import Product
 from django.shortcuts import get_object_or_404
@@ -26,53 +27,149 @@ def address_list(request):
     return Response({"data": serializer.data, "message": "Addresses retrieved successfully"})
 
 
-@swagger_auto_schema(method='post', operation_summary="Add a new address", 
+@swagger_auto_schema(
+    method="post",
+    operation_summary="Add a new address",
     request_body=AddressSerializer,
-    responses={201: AddressSerializer, 400: "Invalid data"})
-@api_view(['POST'])
+    responses={
+        201: AddressSerializer,
+        400: "Invalid data",
+    },
+)
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def address_create(request):
     serializer = AddressSerializer(data=request.data)
-    if serializer.is_valid():
+    serializer.is_valid(raise_exception=True)
+
+    with transaction.atomic():
+        is_default = serializer.validated_data.get("is_default", False)
+
+        if is_default:
+            Address.objects.filter(
+                user=request.user,
+                is_default=True,
+            ).update(is_default=False)
+
         address = serializer.save(user=request.user)
-        return Response({"data": AddressSerializer(address).data, "message": "Address created successfully"}, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        if Address.objects.filter(user=request.user).count() == 1:
+            address.is_default = True
+            address.save(update_fields=["is_default", "updated_at"])
 
-@swagger_auto_schema(method='put', operation_summary="Update an address", 
+    return Response(
+        {
+            "data": AddressSerializer(address).data,
+            "message": "Address created successfully",
+        },
+        status=status.HTTP_201_CREATED,
+    )
+@swagger_auto_schema(
+    method="put",
+    operation_summary="Update an address",
     request_body=AddressSerializer,
-    responses={200: AddressSerializer, 400: "Invalid data", 404: "Not found"})
-@api_view(['PUT'])
+    responses={
+        200: AddressSerializer,
+        400: "Invalid data",
+        404: "Address not found",
+    },
+)
+@api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def address_update(request, pk):
-    address = get_object_or_404(Address, pk=pk, user=request.user)
-    serializer = AddressSerializer(address, data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response({"data": AddressSerializer(address).data, "message": "Address updated successfully"})
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    with transaction.atomic():
+        address = get_object_or_404(
+            Address.objects.select_for_update(),
+            pk=pk,
+            user=request.user,
+        )
 
+        serializer = AddressSerializer(address, data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-@swagger_auto_schema(method='delete', operation_summary="Delete an address", 
-    responses={204: "Deleted successfully", 404: "Not found"})
-@api_view(['DELETE'])
+        if serializer.validated_data.get("is_default", False):
+            Address.objects.filter(
+                user=request.user,
+                is_default=True,
+            ).exclude(pk=address.pk).update(is_default=False)
+
+        address = serializer.save()
+
+    return Response(
+        {
+            "data": AddressSerializer(address).data,
+            "message": "Address updated successfully",
+        },
+        status=status.HTTP_200_OK,
+    )
+
+@swagger_auto_schema(
+    method="delete",
+    operation_summary="Delete an address",
+    responses={
+        204: "Deleted successfully",
+        404: "Address not found",
+    },
+)
+@api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def address_delete(request, pk):
-    address = get_object_or_404(Address, pk=pk, user=request.user)
-    address.delete()
+    with transaction.atomic():
+        address = get_object_or_404(
+            Address.objects.select_for_update(),
+            pk=pk,
+            user=request.user,
+        )
+
+        was_default = address.is_default
+        address.delete()
+
+        if was_default:
+            next_address = Address.objects.filter(
+                user=request.user,
+            ).order_by("-created_at", "-id").first()
+
+            if next_address:
+                next_address.is_default = True
+                next_address.save(
+                    update_fields=["is_default", "updated_at"]
+                )
+
     return Response(status=status.HTTP_204_NO_CONTENT)
 
-
-@swagger_auto_schema(method='patch', operation_summary="Set address as default", 
-    responses={200: AddressSerializer, 404: "Not found"})
-@api_view(['PATCH'])
+@swagger_auto_schema(
+    method="patch",
+    operation_summary="Set address as default",
+    responses={
+        200: AddressSerializer,
+        404: "Address not found",
+    },
+)
+@api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def address_set_default(request, pk):
-    address = get_object_or_404(Address, pk=pk, user=request.user)
-    address.is_default = True
-    address.save()
-    return Response({"data": AddressSerializer(address).data, "message": "Default address set successfully"})
+    with transaction.atomic():
+        address = get_object_or_404(
+            Address.objects.select_for_update(),
+            pk=pk,
+            user=request.user,
+        )
 
+        Address.objects.filter(
+            user=request.user,
+            is_default=True,
+        ).exclude(pk=address.pk).update(is_default=False)
+
+        address.is_default = True
+        address.save(update_fields=["is_default", "updated_at"])
+
+    return Response(
+        {
+            "data": AddressSerializer(address).data,
+            "message": "Default address set successfully",
+        },
+        status=status.HTTP_200_OK,
+    )
 @swagger_auto_schema(method='get', operation_summary="List my favorites",
     responses={200: FavoriteSerializer(many=True)})
 @api_view(['GET'])
@@ -83,21 +180,44 @@ def favorite_list(request):
     return Response({"data": serializer.data, "message": "Favorites retrieved successfully"})
 
 
-@swagger_auto_schema(method='post', operation_summary="Add a product to favorites",
+@swagger_auto_schema(
+    method="post",
+    operation_summary="Add a product to favorites",
     request_body=FavoriteCreateSerializer,
-    responses={201: FavoriteSerializer, 400: "Invalid data or already favorited"})
-@api_view(['POST'])
+    responses={
+        201: FavoriteSerializer,
+        400: "Invalid data or already favorited",
+    },
+)
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def favorite_create(request):
     serializer = FavoriteCreateSerializer(data=request.data)
-    if serializer.is_valid():
-        try:
-            favorite = serializer.save(user=request.user)
-        except Exception:
-            return Response({"error": "This product is already in your favorites."}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"data": FavoriteSerializer(favorite).data, "message": "Product added to favorites successfully"}, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    serializer.is_valid(raise_exception=True)
 
+    product = serializer.validated_data["product"]
+
+    if not product.is_active:
+        return Response(
+            {"detail": "This product is not available."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        favorite = serializer.save(user=request.user)
+    except IntegrityError:
+        return Response(
+            {"detail": "This product is already in your favorites."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return Response(
+        {
+            "data": FavoriteSerializer(favorite).data,
+            "message": "Product added to favorites successfully",
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 @swagger_auto_schema(method='delete', operation_summary="Remove a product from favorites",
     responses={204: "Deleted successfully", 404: "Not found"})
@@ -128,22 +248,53 @@ def feedback_product_list(request, product_id):
     return Response({"data": serializer.data, "message": "Product feedback retrieved successfully"})
 
 
-@swagger_auto_schema(method='post', operation_summary="Submit feedback for a product",
-    operation_description="Submit a comment and/or a rating (1-5). At least one is required.",
+@swagger_auto_schema(
+    method="post",
+    operation_summary="Submit feedback for a product",
+    operation_description=(
+        "Submit a comment and/or a rating (1-5). "
+        "At least one is required."
+    ),
     request_body=ProductFeedbackCreateSerializer,
-    responses={201: ProductFeedbackSerializer, 400: "Invalid data or already reviewed"})
-@api_view(['POST'])
+    responses={
+        201: ProductFeedbackSerializer,
+        400: "Invalid data or feedback already exists",
+    },
+)
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def feedback_create(request):
     serializer = ProductFeedbackCreateSerializer(data=request.data)
-    if serializer.is_valid():
-        try:
-            feedback = serializer.save(user=request.user)
-        except Exception:
-            return Response({"error": "You have already submitted feedback for this product."}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"data": ProductFeedbackSerializer(feedback).data, "message": "Feedback submitted successfully"}, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    serializer.is_valid(raise_exception=True)
 
+    product = serializer.validated_data["product"]
+
+    if not product.is_active:
+        return Response(
+            {"detail": "Feedback cannot be submitted for an inactive product."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        feedback = serializer.save(user=request.user)
+    except IntegrityError:
+        return Response(
+            {
+                "detail": (
+                    "You have already submitted feedback "
+                    "for this product."
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return Response(
+        {
+            "data": ProductFeedbackSerializer(feedback).data,
+            "message": "Feedback submitted successfully",
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 @swagger_auto_schema(method='get', operation_summary="Get my feedback detail",
     responses={200: ProductFeedbackSerializer, 404: "Not found"})
@@ -267,7 +418,8 @@ def product_request_create(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def product_request_my_list(request):
-    requests_qs = ProductRequest.objects.filter(user=request.user)
+    requests_qs = ProductRequest.objects.filter(
+    user=request.user).order_by("-created_at", "-id")
     serializer = ProductRequestSerializer(requests_qs, many=True)
     return Response({"data": serializer.data, "message": "Your product requests retrieved successfully"})
 
@@ -302,7 +454,9 @@ def product_request_my_delete(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def product_request_admin_list(request):
-    requests_qs = ProductRequest.objects.all()
+    requests_qs = ProductRequest.objects.all().order_by(
+    "-created_at",
+    "-id",)
     status_filter = request.GET.get('status')
     if status_filter:
         requests_qs = requests_qs.filter(status=status_filter)
