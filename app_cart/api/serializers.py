@@ -68,10 +68,54 @@ class CartSerializer(serializers.ModelSerializer):
 
 class CartSummarySerializer(serializers.Serializer):
     items_count = serializers.IntegerField()
-    subtotal = serializers.DecimalField(max_digits=12, decimal_places=0)
-    discount_amount = serializers.DecimalField(max_digits=12, decimal_places=0)
-    final_total = serializers.DecimalField(max_digits=12, decimal_places=0)
 
+    subtotal = serializers.DecimalField(max_digits=14, decimal_places=0)
 
+    product_discount_amount = serializers.DecimalField(
+        max_digits=14, decimal_places=0
+    )
+
+    subtotal_after_product_discount = serializers.DecimalField(
+        max_digits=14, decimal_places=0
+    )
+
+    discount_code = serializers.CharField(
+        allow_null=True,
+        required=False
+    )
+
+    discount_code_type = serializers.CharField(
+        allow_null=True,
+        required=False
+    )
+
+    discount_code_value = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        allow_null=True,
+        required=False
+    )
+
+    discount_code_amount = serializers.DecimalField(
+        max_digits=14, decimal_places=0
+    )
+
+    discount_code_percentage = serializers.DecimalField(
+        max_digits=7, decimal_places=2
+    )
+
+    total_discount_amount = serializers.DecimalField(
+        max_digits=14, decimal_places=0
+    )
+
+    total_discount_percentage = serializers.DecimalField(
+        max_digits=7, decimal_places=2
+    )
+
+    final_total = serializers.DecimalField(
+        max_digits=14, decimal_places=0
+    )
+
+    items = serializers.ListField()
 class ApplyDiscountCodeSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=50, trim_whitespace=True)

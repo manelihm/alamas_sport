@@ -237,79 +237,115 @@ class ProductOptionSerializer(serializers.ModelSerializer):
 
     retail_original_price = serializers.SerializerMethodField()
     retail_discount_price = serializers.SerializerMethodField()
+    retail_discount_amount = serializers.SerializerMethodField()
     retail_discount_percentage = serializers.SerializerMethodField()
 
     wholesale_original_price = serializers.SerializerMethodField()
     wholesale_discount_price = serializers.SerializerMethodField()
+    wholesale_discount_amount = serializers.SerializerMethodField()
     wholesale_discount_percentage = serializers.SerializerMethodField()
 
     def get_discount_data(self, obj, price_field):
+        cache = getattr(self, "_discount_cache", {})
+        cache_key = (obj.pk, price_field)
+
+        if cache_key in cache:
+            return cache[cache_key]
+
         now = timezone.now()
 
         discount = obj.discounts.filter(
             start_at__lte=now,
             end_at__gte=now
-        ).order_by('-start_at', '-id').first()
+        ).order_by("-start_at", "-id").first()
 
-        original_price = getattr(obj, price_field)
+        original_price = Decimal(str(getattr(obj, price_field)))
 
         if not discount:
-            return {
-                'original_price': original_price,
-                'discount_price': original_price,
-                'discount_percentage': 0,
+            data = {
+                "original_price": original_price,
+                "discount_price": original_price,
+                "discount_amount": Decimal("0"),
+                "discount_percentage": Decimal("0"),
+                "discount_type": None,
+                "discount_value": None,
+            }
+        else:
+            if discount.type == "percentage":
+                amount = (
+                    original_price * discount.value / Decimal("100")
+                )
+            else:
+                amount = discount.value
+
+            final_price = max(
+                Decimal("0"),
+                original_price - amount
+            ).quantize(
+                Decimal("1"),
+                rounding=ROUND_HALF_UP
+            )
+
+            actual_amount = original_price - final_price
+
+            percentage = (
+                actual_amount * Decimal("100") / original_price
+                if original_price > 0 else Decimal("0")
+            )
+
+            data = {
+                "original_price": original_price,
+                "discount_price": final_price,
+                "discount_amount": actual_amount,
+                "discount_percentage": percentage.quantize(
+                    Decimal("0.01"),
+                    rounding=ROUND_HALF_UP
+                ),
+                "discount_type": discount.type,
+                "discount_value": discount.value,
             }
 
-        if discount.type == 'percentage':
-            discount_amount = (
-                original_price * discount.value / Decimal('100')
-            )
-        else:
-            discount_amount = discount.value
+        cache[cache_key] = data
+        self._discount_cache = cache
 
-        final_price = max(
-            Decimal('0'),
-            original_price - discount_amount
-        )
-
-        final_price = final_price.quantize(
-            Decimal('1'),
-            rounding=ROUND_HALF_UP
-        )
-
-        percentage = (
-            (original_price - final_price) * Decimal('100')
-            / original_price
-            if original_price > 0 else Decimal('0')
-        )
-
-        return {
-            'original_price': original_price,
-            'discount_price': final_price,
-            'discount_percentage': percentage.quantize(
-                Decimal('0.01'),
-                rounding=ROUND_HALF_UP
-            ),
-        }
+        return data
 
     def get_retail_original_price(self, obj):
-        return self.get_discount_data(obj, 'retail_price')['original_price']
+        return self.get_discount_data(obj, "retail_price")["original_price"]
 
     def get_retail_discount_price(self, obj):
-        return self.get_discount_data(obj, 'retail_price')['discount_price']
+        return self.get_discount_data(obj, "retail_price")["discount_price"]
+
+    def get_retail_discount_amount(self, obj):
+        return self.get_discount_data(obj, "retail_price")["discount_amount"]
 
     def get_retail_discount_percentage(self, obj):
-        return self.get_discount_data(obj, 'retail_price')['discount_percentage']
+        return self.get_discount_data(obj, "retail_price")["discount_percentage"]
 
     def get_wholesale_original_price(self, obj):
-        return self.get_discount_data(obj, 'wholesale_price')['original_price']
+        return self.get_discount_data(obj, "wholesale_price")["original_price"]
 
     def get_wholesale_discount_price(self, obj):
-        return self.get_discount_data(obj, 'wholesale_price')['discount_price']
+        return self.get_discount_data(obj, "wholesale_price")["discount_price"]
+
+    def get_wholesale_discount_amount(self, obj):
+        return self.get_discount_data(obj, "wholesale_price")["discount_amount"]
 
     def get_wholesale_discount_percentage(self, obj):
-        return self.get_discount_data(obj, 'wholesale_price')['discount_percentage']
+        return self.get_discount_data(obj, "wholesale_price")["discount_percentage"]
 
+    def get_active_discount(self, obj):
+        now = timezone.now()
+
+        discount = obj.discounts.filter(
+            start_at__lte=now,
+            end_at__gte=now
+        ).order_by("-start_at", "-id").first()
+
+        if discount:
+            return DiscountSerializer(discount).data
+
+        return None
     def get_active_discount(self, obj):
         now = timezone.now()
 
@@ -342,6 +378,8 @@ class ProductOptionSerializer(serializers.ModelSerializer):
             'stock',
             'is_active',
             'active_discount',
+            "retail_discount_amount",
+            "wholesale_discount_amount",
         ]
 
 

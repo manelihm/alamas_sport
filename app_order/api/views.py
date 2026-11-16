@@ -1,6 +1,6 @@
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
-
+from decimal import Decimal, ROUND_HALF_UP
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -23,13 +23,13 @@ from app_order.services import calculate_checkout, create_order
 
 
 @swagger_auto_schema(
-    method='post',
+    method="post",
     operation_summary="Preview checkout",
     operation_description="Calculates checkout totals without creating an order.",
     request_body=CheckoutRequestSerializer,
     responses={200: "Checkout preview"}
 )
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def checkout_preview(request):
     serializer = CheckoutRequestSerializer(data=request.data)
@@ -40,34 +40,78 @@ def checkout_preview(request):
         **serializer.validated_data
     )
 
+    subtotal = checkout["subtotal"]
+    product_discount = checkout["product_discount_total"]
+    code_discount = checkout["code_discount"]
+    total_discount = checkout["total_discount"]
+
+    after_product_discount = subtotal - product_discount
+
+    code = checkout["discount_code"]
+
+    code_percentage = (
+        code_discount * Decimal("100") / after_product_discount
+        if after_product_discount > 0 else Decimal("0")
+    )
+
+    total_percentage = (
+        total_discount * Decimal("100") / subtotal
+        if subtotal > 0 else Decimal("0")
+    )
+
+    items = []
+
+    for item in checkout["items"]:
+        original_total = money(
+            item["unit_price"] * item["quantity"]
+        )
+
+        discount_percentage = (
+            item["discount_amount"] * Decimal("100") / original_total
+            if original_total > 0 else Decimal("0")
+        )
+
+        items.append({
+            "product": item["product_snapshot"],
+            "quantity": item["quantity"],
+            "price_type": item["price_type"],
+            "unit_price": item["unit_price"],
+            "original_total_price": original_total,
+            "product_discount_amount": item["discount_amount"],
+            "product_discount_percentage": discount_percentage.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP
+            ),
+            "total_price": item["total_price"],
+        })
+
     data = {
-        "subtotal": checkout["subtotal"],
-        "product_discount": checkout["product_discount_total"],
-        "code_discount": checkout["code_discount"],
-        "total_discount": checkout["total_discount"],
+        "subtotal": subtotal,
+        "product_discount_amount": product_discount,
+        "subtotal_after_product_discount": after_product_discount,
+        "discount_code": code.code if code else None,
+        "discount_code_type": code.type if code else None,
+        "discount_code_value": code.value if code else None,
+        "code_discount_amount": code_discount,
+        "code_discount_percentage": code_percentage.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP
+        ),
+        "total_discount_amount": total_discount,
+        "total_discount_percentage": total_percentage.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP
+        ),
         "shipping_cost": checkout["shipping_cost"],
         "final_amount": checkout["final_amount"],
         "order_type": checkout["order_type"],
-        "items": [
-            {
-                "product": item["product_snapshot"],
-                "quantity": item["quantity"],
-                "price_type": item["price_type"],
-                "unit_price": item["unit_price"],
-                "discount_amount": item["discount_amount"],
-                "total_price": item["total_price"],
-            }
-            for item in checkout["items"]
-        ],
+        "items": items,
     }
 
     return Response({
         "data": data,
         "message": "Checkout preview calculated successfully"
     }, status=status.HTTP_200_OK)
-
-
-
 @swagger_auto_schema(
     method='post',
     operation_summary="Create order",

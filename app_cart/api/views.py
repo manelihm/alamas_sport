@@ -10,7 +10,12 @@ from drf_yasg.utils import swagger_auto_schema
 
 from app_cart.models import Cart, CartItem
 from app_cart.api.serializers import CartSerializer
-
+from app_order.services import (
+    money,
+    calculate_discount,
+    get_product_discount,
+)
+from decimal import Decimal, ROUND_HALF_UP
 
 from app_cart.api.serializers import AddCartItemSerializer, CartItemSerializer ,UpdateCartItemSerializer ,ApplyDiscountCodeSerializer,CartSummarySerializer
 from app_product.models import ProductOption ,DiscountCode
@@ -446,66 +451,159 @@ def remove_discount_code(request):
     method="get",
     operation_summary="Get cart summary",
     operation_description=(
-        "Returns the item count, subtotal, discount amount, "
-        "and final total for the authenticated user's active cart."
+        "Returns original prices, product discounts, "
+        "discount code details and final cart total."
     ),
-    responses={
-        200: CartSummarySerializer,
-        401: "Authentication credentials were not provided or are invalid.",
-    },
-    
+    responses={200: CartSummarySerializer}
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def cart_summary(request):
     cart = get_active_cart(request.user)
 
-    items = cart.items.all()
+    cart_items = cart.items.select_related(
+        "product_option__product"
+    ).order_by("id")
 
-    items_count = sum(item.quantity for item in items)
-    subtotal = sum(
-        (item.unit_price * item.quantity for item in items),
-        start=Decimal("0"),
+    items_count = 0
+    subtotal = Decimal("0")
+    product_discount_total = Decimal("0")
+    items_data = []
+
+    for item in cart_items:
+        option = item.product_option
+
+        if (
+            not option
+            or not option.is_active
+            or not option.product.is_active
+        ):
+            continue
+
+        quantity = item.quantity
+        items_count += quantity
+
+        if item.price_type == CartItem.PriceType.RETAIL:
+            unit_price = money(option.retail_price)
+        else:
+            unit_price = money(option.wholesale_price)
+
+        original_total = money(unit_price * quantity)
+
+        product_discount = get_product_discount(
+            option,
+            unit_price,
+            quantity
+        )
+
+        discounted_total = money(
+            original_total - product_discount
+        )
+
+        discount_percentage = (
+            product_discount * Decimal("100") / original_total
+            if original_total > 0 else Decimal("0")
+        )
+
+        subtotal += original_total
+        product_discount_total += product_discount
+
+        items_data.append({
+            "cart_item_id": item.id,
+            "product_option_id": option.id,
+            "product_name": option.product.name,
+            "quantity": quantity,
+            "price_type": item.price_type,
+            "original_unit_price": unit_price,
+            "original_total_price": original_total,
+            "product_discount_amount": product_discount,
+            "product_discount_percentage": money(
+                discount_percentage * 100
+            ) / Decimal("100"),
+            "total_price_after_product_discount": discounted_total,
+        })
+
+    subtotal = money(subtotal)
+    product_discount_total = money(product_discount_total)
+
+    after_product_discount = money(
+        subtotal - product_discount_total
     )
 
-    discount_amount = Decimal("0")
-    discount_code = cart.discount_code
+    code_discount = Decimal("0")
+    code = cart.discount_code
+    code_percentage = Decimal("0")
+    code_type = None
+    code_value = None
+    code_string = None
+
     now = timezone.now()
 
     if (
-        discount_code
-        and not discount_code.is_used
-        and discount_code.start_at <= now <= discount_code.end_at
+        code
+        and not code.is_used
+        and code.start_at <= now <= code.end_at
         and (
-            discount_code.assigned_to_id is None
-            or discount_code.assigned_to_id == request.user.id
+            code.assigned_to_id is None
+            or code.assigned_to_id == request.user.id
         )
     ):
-        if discount_code.type == "percentage":
-            discount_amount = (
-                subtotal * discount_code.value / Decimal("100")
-            )
-        elif discount_code.type == "fixed":
-            discount_amount = discount_code.value
+        code_type = code.type
+        code_value = code.value
+        code_string = code.code
 
-        discount_amount = min(
-            max(discount_amount, Decimal("0")),
-            subtotal,
+        code_discount = calculate_discount(
+            after_product_discount,
+            code.type,
+            code.value
         )
 
-    final_total = subtotal - discount_amount
+        if after_product_discount > 0:
+            code_percentage = (
+                code_discount * Decimal("100")
+                / after_product_discount
+            )
+
+    code_discount = money(code_discount)
+
+    total_discount = money(
+        product_discount_total + code_discount
+    )
+
+    final_total = money(
+        subtotal - total_discount
+    )
+
+    total_percentage = (
+        total_discount * Decimal("100") / subtotal
+        if subtotal > 0 else Decimal("0")
+    )
 
     data = {
         "items_count": items_count,
         "subtotal": subtotal,
-        "discount_amount": discount_amount,
+        "product_discount_amount": product_discount_total,
+        "subtotal_after_product_discount": after_product_discount,
+        "discount_code": code_string,
+        "discount_code_type": code_type,
+        "discount_code_value": code_value,
+        "discount_code_amount": code_discount,
+        "discount_code_percentage": code_percentage.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP
+        ),
+        "total_discount_amount": total_discount,
+        "total_discount_percentage": total_percentage.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP
+        ),
         "final_total": final_total,
+        "items": items_data,
     }
 
     serializer = CartSummarySerializer(data)
+
     return Response(serializer.data, status=status.HTTP_200_OK)
-
-
 @swagger_auto_schema(
     method="get",
     operation_summary="Get my cart history",
