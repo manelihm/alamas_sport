@@ -1,5 +1,63 @@
 from django.db import models
+import os
+from io import BytesIO
 
+from PIL import Image, ImageOps
+from django.core.files.base import ContentFile
+
+def resize_banner_image(uploaded_file):
+    target_size = (1920, 650)
+
+    try:
+        uploaded_file.seek(0)
+
+        with Image.open(uploaded_file) as original:
+            image = ImageOps.exif_transpose(original)
+            image.load()
+
+            if image.mode not in ('RGB', 'RGBA'):
+                image = image.convert('RGBA')
+
+            image = ImageOps.fit(
+                image,
+                target_size,
+                method=Image.Resampling.LANCZOS,
+                centering=(0.5, 0.5)
+            )
+
+            if image.mode == 'RGBA':
+                background = Image.new(
+                    'RGB', target_size, 'white'
+                )
+                background.paste(
+                    image,
+                    mask=image.getchannel('A')
+                )
+                image = background
+            else:
+                image = image.convert('RGB')
+
+            output = BytesIO()
+
+            image.save(
+                output,
+                format='WEBP',
+                quality=85,
+                method=6
+            )
+
+            filename = (
+                os.path.splitext(
+                    os.path.basename(uploaded_file.name)
+                )[0] + '.webp'
+            )
+
+            return filename, ContentFile(output.getvalue())
+
+    except (OSError, ValueError) as error:
+        raise ValueError(
+            'Invalid banner image.'
+        ) from error
 class Banner(models.Model):
     title = models.CharField(max_length=122)
     description = models.TextField()
@@ -8,7 +66,19 @@ class Banner(models.Model):
     button_text = models.CharField(max_length=122)
     sort_order = models.CharField(max_length=122)
     is_active = models.BooleanField()
+    def save(self, *args, **kwargs):
+        if self.image and not self.image._committed:
+            filename, processed_image = resize_banner_image(
+                self.image.file
+            )
 
+            self.image.save(
+                filename,
+                processed_image,
+                save=False
+            )
+
+        super().save(*args, **kwargs)
 
 class HomeContent(models.Model):
     TYPE_CHOICES = [

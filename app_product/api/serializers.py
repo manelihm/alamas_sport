@@ -6,6 +6,7 @@ from app_product.models import (
     ProductOption, Discount, DiscountCode
 )
 from PIL import Image, UnidentifiedImageError
+from decimal import Decimal, ROUND_HALF_UP
 
 try:
     from PIL import DecompressionBombError
@@ -231,24 +232,118 @@ class ProductOptionSerializer(serializers.ModelSerializer):
     color = ProductColorSerializer(read_only=True)
     size = ProductSizeSerializer(read_only=True)
     material = ProductMaterialSerializer(read_only=True)
+
     active_discount = serializers.SerializerMethodField()
+
+    retail_original_price = serializers.SerializerMethodField()
+    retail_discount_price = serializers.SerializerMethodField()
+    retail_discount_percentage = serializers.SerializerMethodField()
+
+    wholesale_original_price = serializers.SerializerMethodField()
+    wholesale_discount_price = serializers.SerializerMethodField()
+    wholesale_discount_percentage = serializers.SerializerMethodField()
+
+    def get_discount_data(self, obj, price_field):
+        now = timezone.now()
+
+        discount = obj.discounts.filter(
+            start_at__lte=now,
+            end_at__gte=now
+        ).order_by('-start_at', '-id').first()
+
+        original_price = getattr(obj, price_field)
+
+        if not discount:
+            return {
+                'original_price': original_price,
+                'discount_price': original_price,
+                'discount_percentage': 0,
+            }
+
+        if discount.type == 'percentage':
+            discount_amount = (
+                original_price * discount.value / Decimal('100')
+            )
+        else:
+            discount_amount = discount.value
+
+        final_price = max(
+            Decimal('0'),
+            original_price - discount_amount
+        )
+
+        final_price = final_price.quantize(
+            Decimal('1'),
+            rounding=ROUND_HALF_UP
+        )
+
+        percentage = (
+            (original_price - final_price) * Decimal('100')
+            / original_price
+            if original_price > 0 else Decimal('0')
+        )
+
+        return {
+            'original_price': original_price,
+            'discount_price': final_price,
+            'discount_percentage': percentage.quantize(
+                Decimal('0.01'),
+                rounding=ROUND_HALF_UP
+            ),
+        }
+
+    def get_retail_original_price(self, obj):
+        return self.get_discount_data(obj, 'retail_price')['original_price']
+
+    def get_retail_discount_price(self, obj):
+        return self.get_discount_data(obj, 'retail_price')['discount_price']
+
+    def get_retail_discount_percentage(self, obj):
+        return self.get_discount_data(obj, 'retail_price')['discount_percentage']
+
+    def get_wholesale_original_price(self, obj):
+        return self.get_discount_data(obj, 'wholesale_price')['original_price']
+
+    def get_wholesale_discount_price(self, obj):
+        return self.get_discount_data(obj, 'wholesale_price')['discount_price']
+
+    def get_wholesale_discount_percentage(self, obj):
+        return self.get_discount_data(obj, 'wholesale_price')['discount_percentage']
+
+    def get_active_discount(self, obj):
+        now = timezone.now()
+
+        discount = obj.discounts.filter(
+            start_at__lte=now,
+            end_at__gte=now
+        ).order_by('-start_at', '-id').first()
+
+        if discount:
+            return DiscountSerializer(discount).data
+
+        return None
 
     class Meta:
         model = ProductOption
         fields = [
-            'id', 'color', 'size', 'material',
-            'retail_price', 'wholesale_price', 'wholesale_min_quantity',
-            'stock', 'is_active', 'active_discount'
+            'id',
+            'color',
+            'size',
+            'material',
+            'retail_price',
+            'wholesale_price',
+            'retail_original_price',
+            'retail_discount_price',
+            'retail_discount_percentage',
+            'wholesale_original_price',
+            'wholesale_discount_price',
+            'wholesale_discount_percentage',
+            'wholesale_min_quantity',
+            'stock',
+            'is_active',
+            'active_discount',
         ]
 
-    def get_active_discount(self, obj):
-        now = timezone.now()
-        discount = obj.discounts.filter(
-            start_at__lte=now, end_at__gte=now
-        ).first()
-        if discount:
-            return DiscountSerializer(discount).data
-        return None
 
 class ProductOptionCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -257,7 +352,7 @@ class ProductOptionCreateSerializer(serializers.ModelSerializer):
             'id', 'product', 'color', 'size', 'material',
             'retail_price', 'wholesale_price', 'wholesale_min_quantity',
             'stock', 'is_active',
-        ]
+                ]
 
 class ProductSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
@@ -269,7 +364,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images']
+        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images' ,'option','is_trending',]
 
     def get_images(self, obj):
         images = (

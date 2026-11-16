@@ -90,7 +90,9 @@ class Product(models.Model):
     brand = models.CharField(max_length=100, blank=True)
     gender = models.CharField(max_length=50, blank=True)
     is_active = models.BooleanField(default=True)
-
+    is_trending = models.BooleanField(default=False)
+    trending_sort_order = models.PositiveIntegerField(default=0)
+    trending_is_active = models.BooleanField(default=True)
 
 class ProductColor(models.Model):
     name = models.CharField(max_length=50)
