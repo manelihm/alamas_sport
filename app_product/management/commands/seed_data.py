@@ -6,6 +6,7 @@ from app_product.models import (
     Category, Product, ProductColor, ProductSize,
     ProductMaterial, ProductOption
 )
+from app_home.models import HomeContent
 
 fake = Faker()
 
@@ -134,28 +135,55 @@ class Command(BaseCommand):
         return all_categories
 
     def create_products(self, categories, colors, sizes, materials):
-        self.stdout.write('Creating products and options...')
-        for _ in range(15):
-            product = Product.objects.create(
-                category=fake.random_element(categories),
-                name=fake.word().capitalize() + ' ' + fake.word().capitalize(),
-                description=fake.paragraph(),
-                brand=fake.company(),
-                gender=fake.random_element(['men', 'women', 'unisex']),
-                is_active=True
+        self.stdout.write('Updating products for Trending...')
+
+        trending_section = HomeContent.objects.filter(
+        type='trending'
+        ).order_by('id').first()
+
+        if not trending_section:
+            trending_section = HomeContent.objects.create(
+                type='trending',
+                title='Trending Products',
+                sort_order=1,
+                is_active=True,
             )
 
-            for _ in range(fake.random_int(2, 4)):
-                ProductOption.objects.get_or_create(
-                    product=product,
-                    color=fake.random_element(colors),
-                    size=fake.random_element(sizes),
-                    material=fake.random_element(materials),
-                    defaults={
-                        'retail_price': fake.random_int(100000, 3000000),
-                        'wholesale_price': fake.random_int(80000, 2500000),
-                        'wholesale_min_quantity': fake.random_int(5, 20),
-                        'stock': fake.random_int(0, 100),
-                        'is_active': True,
-                    }
+    # آخرین ۱۵ محصولی که Seed ساخته است
+        products = list(
+         Product.objects.order_by('-id')[:15]
+        )
+
+        if len(products) < 15:
+            self.stdout.write(
+                self.style.ERROR(
+                    'There are fewer than 15 products in the database.'
                 )
+            )
+            return
+
+    # مرتب‌سازی از قدیمی به جدید
+        products.reverse()
+
+        for index, product in enumerate(products):
+            is_trending = index < 8
+
+            product.is_trending = is_trending
+            product.trending_sort_order = index + 1 if is_trending else 0
+            product.trending_is_active = is_trending
+            product.trending_home_content = (
+                trending_section if is_trending else None
+            )
+
+            product.save(update_fields=[
+                'is_trending',
+                'trending_sort_order',
+                'trending_is_active',
+                'trending_home_content',
+            ])
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                '15 products updated; 8 products marked as Trending.'
+            )
+        )
