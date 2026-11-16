@@ -163,10 +163,28 @@ class ProductMaterialSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description']
 
 class DiscountSerializer(serializers.ModelSerializer):
+    images = serializers.SerializerMethodField()
+
     class Meta:
         model = Discount
-        fields = ['id', 'product', 'type', 'value', 'start_at', 'end_at']
+        fields = [
+            'id',
+            'product',
+            'type',
+            'value',
+            'start_at',
+            'end_at',
+            'images',
+        ]
 
+    def get_images(self, obj):
+        images = obj.product.images.all().order_by('-is_primary', 'id')
+
+        return ProductImageReadSerializer(
+            images,
+            many=True,
+            context=self.context
+        ).data
     def validate(self, attrs):
         start_at = attrs.get('start_at', getattr(self.instance, 'start_at', None))
         end_at = attrs.get('end_at', getattr(self.instance, 'end_at', None))
