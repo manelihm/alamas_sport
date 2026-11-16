@@ -1125,3 +1125,27 @@ def discount_code_apply(request):
         },
         "message": "Discount code is valid."
     }, status=status.HTTP_200_OK)
+
+@swagger_auto_schema(
+    method='get',
+    operation_summary="List trending products",
+    responses={200: ProductSerializer(many=True)}
+)
+@api_view(['GET'])
+def trending_product_list(request):
+    products = Product.objects.filter(
+        is_active=True,
+        is_trending=True,
+        trending_is_active=True,
+    ).order_by('trending_sort_order', 'id')
+
+    serializer = ProductSerializer(
+        products,
+        many=True,
+        context={'request': request}
+    )
+
+    return Response({
+        "data": serializer.data,
+        "message": "Trending products retrieved successfully"
+    })

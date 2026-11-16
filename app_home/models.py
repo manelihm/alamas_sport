@@ -99,12 +99,6 @@ class HomeContent(models.Model):
     category = models.ForeignKey('app_product.Category', on_delete=models.SET_NULL, null=True, blank=True, related_name='home_contents')
 
 
-class TrendingProduct(models.Model):
-    product = models.ForeignKey('app_product.Product', on_delete=models.CASCADE, related_name='trending_entries')
-    home_content = models.ForeignKey(HomeContent, on_delete=models.SET_NULL, null=True, blank=True, related_name='trending_products')
-    sort_order = models.PositiveIntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
 
 class CompanyInformation(models.Model):
     title = models.CharField(max_length=255)

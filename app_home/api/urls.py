@@ -25,13 +25,6 @@ urlpatterns = [
     path("banners/change_status" ,views.banner_change_status) ,
     path("banners/banner_display_order" ,views.banner_display_order) ,
 
-    path('trending/', views.trending_product_list),
-    path('trending/<int:pk>/', views.trending_product_detail),
-    path('trending/create/', views.trending_product_create),
-    path('trending/<int:pk>/update/', views.trending_product_update),
-    path('trending/<int:pk>/delete/', views.trending_product_delete),
-    path('trending/reorder/', views.trending_product_reorder),
-    path('trending/<int:pk>/change-status/', views.trending_product_change_status),
 
     path('company/', views.company_information_detail),
     path('company/update/', views.company_information_update),

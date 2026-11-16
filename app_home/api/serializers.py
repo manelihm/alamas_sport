@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from app_home.models import Banner ,HomeContent, TrendingProduct, CompanyInformation, CompanyInformationContent
+from app_home.models import Banner ,HomeContent, CompanyInformation, CompanyInformationContent
 from app_product.api.serializers import ProductSerializer
 
 
@@ -25,18 +25,7 @@ class  HomeContentSerializer(serializers.ModelSerializer):
         model = HomeContent
         fields = ['id', 'type', 'title', 'sort_order', 'is_active', 'banner', 'discount', 'category']
 
-class TrendingProductSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(read_only=True)
 
-    class Meta:
-        model = TrendingProduct
-        fields = ['id', 'product', 'home_content', 'sort_order', 'is_active']
-
-
-class TrendingProductCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TrendingProduct
-        fields = ['id', 'product', 'home_content', 'sort_order', 'is_active']
 
 
 class CompanyInformationContentSerializer(serializers.ModelSerializer):

@@ -93,6 +93,13 @@ class Product(models.Model):
     is_trending = models.BooleanField(default=False)
     trending_sort_order = models.PositiveIntegerField(default=0)
     trending_is_active = models.BooleanField(default=True)
+    trending_home_content = models.ForeignKey(
+    'app_home.HomeContent',
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    related_name='product_trending_entries'
+)
 
 class ProductColor(models.Model):
     name = models.CharField(max_length=50)

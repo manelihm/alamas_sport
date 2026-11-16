@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view , permission_classes
 from rest_framework.response import Response
-from app_home.models import Banner ,HomeContent, TrendingProduct, CompanyInformation, CompanyInformationContent
-from app_home.api.serializers import BannerSerializer,HomeContentSerializer, TrendingProductSerializer, TrendingProductCreateSerializer,CompanyInformationSerializer, CompanyInformationUpdateSerializer,CompanyInformationContentSerializer
+from app_home.models import Banner ,HomeContent, CompanyInformation, CompanyInformationContent
+from app_home.api.serializers import BannerSerializer,HomeContentSerializer,CompanyInformationSerializer, CompanyInformationUpdateSerializer,CompanyInformationContentSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.permissions  import IsAdminUser
@@ -99,88 +99,6 @@ def banner_display_order(request):
     return Response({"message": "Banners order updated successfully"})
 
 
-
-@swagger_auto_schema(method='get', operation_summary="List trending products",
-    operation_description="Returns active trending products ordered by sort_order.",
-    responses={200: TrendingProductSerializer(many=True)})
-@api_view(['GET'])
-def trending_product_list(request):
-    trending = TrendingProduct.objects.filter(is_active=True).order_by('sort_order')
-    serializer = TrendingProductSerializer(trending, many=True)
-    return Response({"data": serializer.data, "message": "Trending products retrieved successfully"})
-
-
-
-@swagger_auto_schema(method='get', operation_summary="Get trending product detail",
-    responses={200: TrendingProductSerializer, 404: "Not found"})
-@api_view(['GET'])
-def trending_product_detail(request, pk):
-    trending = get_object_or_404(TrendingProduct, pk=pk, is_active=True)
-    serializer = TrendingProductSerializer(trending)
-    return Response({"data": serializer.data, "message": "Trending product retrieved successfully"})
-
-
-@swagger_auto_schema(method='post', operation_summary="Add product to trending list", 
-    operation_description="Only accessible by admin users.",
-    request_body=TrendingProductCreateSerializer,
-    responses={201: TrendingProductCreateSerializer, 400: "Invalid data"})
-@api_view(['POST'])
-@permission_classes([IsAdminUser])
-def trending_product_create(request):
-    serializer = TrendingProductCreateSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response({"data": serializer.data, "message": "Trending product created successfully"}, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@swagger_auto_schema(method='put', operation_summary="Update trending product", 
-    operation_description="Only accessible by admin users.",
-    request_body=TrendingProductCreateSerializer,
-    responses={200: TrendingProductCreateSerializer, 400: "Invalid data", 404: "Not found"})
-@api_view(['PUT'])
-@permission_classes([IsAdminUser])
-def trending_product_update(request, pk):
-    trending = get_object_or_404(TrendingProduct, pk=pk)
-    serializer = TrendingProductCreateSerializer(trending, data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response({"data": serializer.data, "message": "Trending product updated successfully"})
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@swagger_auto_schema(method='delete', operation_summary="Remove from trending list", 
-    operation_description="Only accessible by admin users.",
-    responses={204: "Deleted successfully", 404: "Not found"})
-@api_view(['DELETE'])
-@permission_classes([IsAdminUser])
-def trending_product_delete(request, pk):
-    trending = get_object_or_404(TrendingProduct, pk=pk)
-    trending.delete()
-    return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-@swagger_auto_schema(method='patch', operation_summary="Reorder trending products", 
-    operation_description="Updates sort_order of multiple trending entries. Only accessible by admin users. Example body: [{\"id\": 1, \"sort_order\": 2}]",
-    responses={200: "Order updated successfully"})
-@api_view(['PATCH'])
-@permission_classes([IsAdminUser])
-def trending_product_reorder(request):
-    for item in request.data:
-        TrendingProduct.objects.filter(id=item['id']).update(sort_order=item['sort_order'])
-    return Response({"message": "Trending order updated successfully"})
-
-
-@swagger_auto_schema(method='patch', operation_summary="Change trending status", 
-    operation_description="Toggles active/inactive status. Only accessible by admin users.",
-    responses={200: TrendingProductSerializer, 404: "Not found"})
-@api_view(['PATCH'])
-@permission_classes([IsAdminUser])
-def trending_product_change_status(request, pk):
-    trending = get_object_or_404(TrendingProduct, pk=pk)
-    trending.is_active = not trending.is_active
-    trending.save()
-    return Response({"data": TrendingProductSerializer(trending).data, "message": "Trending product status updated successfully"})
 
 @swagger_auto_schema(method='get', operation_summary="Get company main information",
     operation_description="Returns the company's main info: title, description, logo, status.",

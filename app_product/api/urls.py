@@ -76,6 +76,7 @@ urlpatterns = [
     path('discount-codes/apply/', views.discount_code_apply), # بالاتر از pk قرار گرفت
     path('discount-codes/<int:pk>/update/', views.discount_code_update),
     path('discount-codes/<int:pk>/delete/', views.discount_code_delete),
+    path('products/trending/', views.trending_product_list),
 ]
 
 if settings.DEBUG:

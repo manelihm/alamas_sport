@@ -1,7 +1,6 @@
 from django.contrib import admin
 from app_home.models import (
     Banner,
-    TrendingProduct,
     CompanyInformation,
     CompanyInformationContent,
     HomeContent,
@@ -17,17 +16,6 @@ class BannerAdmin(admin.ModelAdmin):
     list_filter = ['is_active']
     search_fields = ['title']
     ordering = ['id']
-@admin.register(TrendingProduct)
-class TrendingProductAdmin(admin.ModelAdmin):
-    list_display = [
-        'id',
-        'product',
-        'home_content',
-        'sort_order',
-        'is_active',
-    ]
-    list_filter = ['is_active']
-    ordering = ['sort_order']
 class CompanyInformationContentInline(admin.TabularInline):
     model = CompanyInformationContent
     extra = 1
