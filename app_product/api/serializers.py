@@ -368,7 +368,7 @@ class ProductOptionCreateSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
-    
+    image_url = serializers.SerializerMethodField()
     options = ProductOptionSerializer(
     many=True,
     read_only=True
@@ -381,7 +381,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images' ,'options','is_trending','trending_sort_order','trending_is_active',]
+        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images','images_url' ,'options','is_trending','trending_sort_order','trending_is_active',]
 
     def get_images(self, obj):
         images = (
@@ -395,7 +395,27 @@ class ProductSerializer(serializers.ModelSerializer):
             many=True,
             context=self.context
         ).data
+    def get_image_url(self, obj):
+        image = (
+            ProductImage.objects
+            .filter(product__product=obj)
+            .order_by('-is_primary', 'id')
+            .first()
+        )
 
+        if not image or not image.image_url:
+            return None
+
+        try:
+            url = image.image_url.url
+        except (ValueError, NotImplementedError):
+            return None
+
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(url)
+
+        return url
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
