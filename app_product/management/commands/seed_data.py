@@ -6,7 +6,7 @@ from app_product.models import (
     Category, Product, ProductColor, ProductSize,
     ProductMaterial, ProductOption
 )
-from app_home.models import HomeContent
+
 
 fake = Faker()
 
@@ -137,16 +137,7 @@ class Command(BaseCommand):
     def create_products(self, categories, colors, sizes, materials):
         self.stdout.write('Updating products for Trending...')
 
-        trending_section = HomeContent.objects.filter(
-        type='trending'
-        ).order_by('id').first()
-
-        if not trending_section:
-            trending_section = HomeContent.objects.create(
-                type='trending',
-                title='Trending Products',
-                sort_order=1,
-                is_active=True,
+        
             )
 
     # آخرین ۱۵ محصولی که Seed ساخته است
@@ -171,16 +162,12 @@ class Command(BaseCommand):
             product.is_trending = is_trending
             product.trending_sort_order = index + 1 if is_trending else 0
             product.trending_is_active = is_trending
-            product.trending_home_content = (
-                trending_section if is_trending else None
-            )
 
             product.save(update_fields=[
-                'is_trending',
-                'trending_sort_order',
-                'trending_is_active',
-                'trending_home_content',
-            ])
+            'is_trending',
+            'trending_sort_order',
+            'trending_is_active',
+        ])
 
         self.stdout.write(
             self.style.SUCCESS(
