@@ -356,6 +356,11 @@ class ProductOptionCreateSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
+    
+    options = ProductOptionSerializer(
+    many=True,
+    read_only=True
+)
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         allow_null=True,
@@ -391,7 +396,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images', 'options','is_ternding']
+        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images', 'options','is_trending']
 
     def get_images(self, obj):
         images = (
