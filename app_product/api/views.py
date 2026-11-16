@@ -1137,11 +1137,7 @@ def trending_product_list(request):
         is_active=True,
         is_trending=True,
         trending_is_active=True,
-        products = Product.objects.filter(
-        is_active=True,
-        is_trending=True,
-        trending_is_active=True,
-        ).order_by('trending_sort_order', 'id'))
+    ).order_by('trending_sort_order', 'id')
 
     serializer = ProductSerializer(
         products,
