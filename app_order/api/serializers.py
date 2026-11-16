@@ -82,6 +82,8 @@ class OrderSerializer(serializers.ModelSerializer):
             "total_amount",
             "product_discount_amount",
             "code_discount_snapshot",
+            "discount_code_type_snapshot",
+            "discount_code_value_snapshot",
             "code_discount_amount",
             "code_discount_percentage",
             "discount_amount",

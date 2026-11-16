@@ -352,6 +352,7 @@ class ProductOptionSerializer(serializers.ModelSerializer):
             "wholesale_original_price",
             "wholesale_discount_price",
             "wholesale_discount_amount",
+            "wholesale_discount_percentage",
             "stock",
             "is_active",
             "active_discount",

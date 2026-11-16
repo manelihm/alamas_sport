@@ -449,6 +449,16 @@ def create_order(
             if checkout["discount_code"]
             else ""
         ),
+        discount_code_type_snapshot=(
+            checkout["discount_code"].type
+            if checkout["discount_code"]
+            else ""
+        ),
+        discount_code_value_snapshot=(
+            checkout["discount_code"].value
+            if checkout["discount_code"]
+            else None
+        ),
     )
 
     reservation_expiry = timezone.now() + timedelta(hours=24)

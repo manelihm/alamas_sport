@@ -143,7 +143,18 @@ class Order(models.Model):
         max_length=50,
         blank=True,
     )
+    discount_code_type_snapshot = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+    )
 
+    discount_code_value_snapshot = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        null=True,
+        blank=True,
+    )
     tracking_code = models.CharField(max_length=100, blank=True)
 
     internal_note = models.TextField(blank=True)

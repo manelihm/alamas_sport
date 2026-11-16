@@ -7,13 +7,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from drf_yasg.utils import swagger_auto_schema
-
+from rest_framework.exceptions import ValidationError
 from app_cart.models import Cart, CartItem
 from app_cart.api.serializers import CartSerializer
 from app_order.services import (
     money,
     calculate_discount,
     get_product_discount,
+    get_valid_discount_code,
 )
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -532,23 +533,18 @@ def cart_summary(request):
     )
 
     code_discount = Decimal("0")
-    code = cart.discount_code
-    code_percentage = Decimal("0")
-    code_type = None
-    code_value = None
-    code_string = None
+    code = None
 
-    now = timezone.now()
+    if cart.discount_code_id:
+        try:
+            code = get_valid_discount_code(
+                cart.discount_code.code,
+                request.user,
+            )
+        except ValidationError:
+            code = None
 
-    if (
-        code
-        and not code.is_used
-        and code.start_at <= now <= code.end_at
-        and (
-            code.assigned_to_id is None
-            or code.assigned_to_id == request.user.id
-        )
-    ):
+    if code:
         code_type = code.type
         code_value = code.value
         code_string = code.code
@@ -556,7 +552,7 @@ def cart_summary(request):
         code_discount = calculate_discount(
             after_product_discount,
             code.type,
-            code.value
+            code.value,
         )
 
         if after_product_discount > 0:
@@ -564,7 +560,6 @@ def cart_summary(request):
                 code_discount * Decimal("100")
                 / after_product_discount
             )
-
     code_discount = money(code_discount)
 
     total_discount = money(
