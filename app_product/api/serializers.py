@@ -381,7 +381,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images','images_url' ,'options','is_trending','trending_sort_order','trending_is_active',]
+        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images','image_url' ,'options','is_trending','trending_sort_order','trending_is_active',]
 
     def get_images(self, obj):
         images = (
