@@ -23,7 +23,6 @@ from app_users.models import (
 )
 from app_home.models import (
     HomeContent,
-    TrendingProduct,
     CompanyInformation,
     CompanyInformationContent,
 )
@@ -50,7 +49,6 @@ class Command(BaseCommand):
 
         self.create_user_data()
         self.create_home_content()
-        self.create_trending_products()
         self.create_company_information()
 
         self.stdout.write("")
@@ -269,8 +267,18 @@ class Command(BaseCommand):
     # PRODUCTS
     # -------------------------------------------------
 
-    def create_products(self):
+     def create_products(self):
         self.stdout.write("Creating products...")
+
+        # سکشن Trending در HomeContent؛ این رکورد حفظ می‌شود
+        trending_section, _ = HomeContent.objects.get_or_create(
+            type="trending",
+            title="محصولات پرفروش و محبوب",
+            defaults={
+                "sort_order": 1,
+                "is_active": True,
+            },
+        )
 
         product_data = [
             {
@@ -337,7 +345,7 @@ class Command(BaseCommand):
 
         products = []
 
-        for data in product_data:
+        for index, data in enumerate(product_data):
             category = next(
                 (
                     item for item in self.categories
@@ -345,6 +353,9 @@ class Command(BaseCommand):
                 ),
                 None,
             )
+
+            # هشت محصول اول، Trending هستند
+            is_trending = index < 8
 
             product, _ = Product.objects.get_or_create(
                 name=data["name"],
@@ -357,14 +368,42 @@ class Command(BaseCommand):
                     "brand": data["brand"],
                     "gender": data["gender"],
                     "is_active": True,
+                    "is_trending": is_trending,
+                    "trending_sort_order": index + 1 if is_trending else 0,
+                    "trending_is_active": is_trending,
+                    "trending_home_content": (
+                        trending_section if is_trending else None
+                    ),
                 },
             )
 
+            # اگر محصول از قبل وجود داشت، اطلاعاتش هم به‌روز شود
             product.category = category
+            product.description = (
+                f"{data['name']} با کیفیت مناسب "
+                "برای تمرین و فعالیت ورزشی."
+            )
+            product.brand = data["brand"]
+            product.gender = data["gender"]
             product.is_active = True
+            product.is_trending = is_trending
+            product.trending_sort_order = (
+                index + 1 if is_trending else 0
+            )
+            product.trending_is_active = is_trending
+            product.trending_home_content = (
+                trending_section if is_trending else None
+            )
             product.save()
 
             products.append(product)
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"{len(products)} products created/updated; "
+                f"{min(8, len(products))} marked as Trending."
+            )
+        )
 
         return products
 
@@ -596,27 +635,6 @@ class Command(BaseCommand):
 
         # No banner section is created because Banner requires an image.
 
-    # -------------------------------------------------
-    # TRENDING PRODUCTS
-    # -------------------------------------------------
-
-    def create_trending_products(self):
-        self.stdout.write("Creating trending products...")
-
-        trending_section = HomeContent.objects.filter(
-            type="trending",
-            title="محصولات پرفروش و محبوب",
-        ).first()
-
-        for index, product in enumerate(self.products[:8]):
-            TrendingProduct.objects.get_or_create(
-                product=product,
-                home_content=trending_section,
-                defaults={
-                    "sort_order": index + 1,
-                    "is_active": True,
-                },
-            )
 
     # -------------------------------------------------
     # COMPANY INFORMATION
