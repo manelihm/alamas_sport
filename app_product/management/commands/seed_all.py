@@ -62,9 +62,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Discounts: {Discount.objects.count()}")
         self.stdout.write(f"Discount codes: {DiscountCode.objects.count()}")
         self.stdout.write(f"Home content: {HomeContent.objects.count()}")
-        self.stdout.write(
-            f"Trending products: {TrendingProduct.objects.count()}"
-        )
+       
 
     # -------------------------------------------------
     # USERS
@@ -267,7 +265,7 @@ class Command(BaseCommand):
     # PRODUCTS
     # -------------------------------------------------
 
-     def create_products(self):
+    def create_products(self):
         self.stdout.write("Creating products...")
 
         # سکشن Trending در HomeContent؛ این رکورد حفظ می‌شود
