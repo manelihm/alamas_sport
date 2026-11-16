@@ -18,12 +18,22 @@ def resize_banner_image(uploaded_file):
             if image.mode not in ('RGB', 'RGBA'):
                 image = image.convert('RGBA')
 
-            image = ImageOps.fit(
-                image,
+            image.thumbnail(
                 target_size,
-                method=Image.Resampling.LANCZOS,
-                centering=(0.5, 0.5)
+                Image.Resampling.LANCZOS
             )
+
+            canvas = Image.new("RGB", target_size, "white")
+
+            x = (target_size[0] - image.width) // 2
+            y = (target_size[1] - image.height) // 2
+
+            if image.mode == "RGBA":
+                canvas.paste(image, (x, y), image)
+            else:
+                canvas.paste(image.convert("RGB"), (x, y))
+
+            image = canvas
 
             if image.mode == 'RGBA':
                 background = Image.new(
