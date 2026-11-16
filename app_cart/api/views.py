@@ -532,8 +532,10 @@ def cart_summary(request):
         subtotal - product_discount_total
     )
 
-    code_discount = Decimal("0")
-    code = None
+    code_percentage = Decimal("0")
+    code_type = None
+    code_value = None
+    code_string = None
 
     if cart.discount_code_id:
         try:
