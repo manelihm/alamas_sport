@@ -5,6 +5,7 @@ from app_product.models import (
     ProductColor, ProductSize, ProductMaterial,
     ProductOption, Discount, DiscountCode
 )
+from app_order.services import calculate_discount
 from PIL import Image, UnidentifiedImageError
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -246,69 +247,44 @@ class ProductOptionSerializer(serializers.ModelSerializer):
     wholesale_discount_percentage = serializers.SerializerMethodField()
 
     def get_discount_data(self, obj, price_field):
-        cache = getattr(self, "_discount_cache", {})
-        cache_key = (obj.pk, price_field)
-
-        if cache_key in cache:
-            return cache[cache_key]
-
         now = timezone.now()
+        original = Decimal(str(getattr(obj, price_field)))
 
-        discount = obj.discounts.filter(
+        discounts = obj.discounts.filter(
             start_at__lte=now,
-            end_at__gte=now
-        ).order_by("-start_at", "-id").first()
+            end_at__gte=now,
+        )
 
-        original_price = Decimal(str(getattr(obj, price_field)))
+        best_discount = None
+        best_amount = Decimal("0")
 
-        if not discount:
-            data = {
-                "original_price": original_price,
-                "discount_price": original_price,
-                "discount_amount": Decimal("0"),
-                "discount_percentage": Decimal("0"),
-                "discount_type": None,
-                "discount_value": None,
-            }
-        else:
-            if discount.type == "percentage":
-                amount = (
-                    original_price * discount.value / Decimal("100")
-                )
-            else:
-                amount = discount.value
-
-            final_price = max(
-                Decimal("0"),
-                original_price - amount
-            ).quantize(
-                Decimal("1"),
-                rounding=ROUND_HALF_UP
+        for discount in discounts:
+            amount = calculate_discount(
+                original,
+                discount.type,
+                discount.value,
             )
 
-            actual_amount = original_price - final_price
+            if amount > best_amount:
+                best_discount = discount
+                best_amount = amount
 
-            percentage = (
-                actual_amount * Decimal("100") / original_price
-                if original_price > 0 else Decimal("0")
-            )
+        final_price = original - best_amount
 
-            data = {
-                "original_price": original_price,
-                "discount_price": final_price,
-                "discount_amount": actual_amount,
-                "discount_percentage": percentage.quantize(
-                    Decimal("0.01"),
-                    rounding=ROUND_HALF_UP
-                ),
-                "discount_type": discount.type,
-                "discount_value": discount.value,
-            }
+        percentage = (
+            best_amount * Decimal("100") / original
+            if original > 0 else Decimal("0")
+        )
 
-        cache[cache_key] = data
-        self._discount_cache = cache
-
-        return data
+        return {
+            "original_price": original,
+            "discount_price": final_price,
+            "discount_amount": best_amount,
+            "discount_percentage": percentage.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP,
+            ),
+        }
 
     def get_retail_original_price(self, obj):
         return self.get_discount_data(obj, "retail_price")["original_price"]
@@ -336,53 +312,50 @@ class ProductOptionSerializer(serializers.ModelSerializer):
 
     def get_active_discount(self, obj):
         now = timezone.now()
-
-        discount = obj.discounts.filter(
+        discounts = obj.discounts.filter(
             start_at__lte=now,
-            end_at__gte=now
-        ).order_by("-start_at", "-id").first()
+            end_at__gte=now,
+        )
 
-        if discount:
-            return DiscountSerializer(discount).data
+        best_discount = None
+        best_amount = Decimal("0")
 
-        return None
-    def get_active_discount(self, obj):
-        now = timezone.now()
+        for discount in discounts:
+            amount = calculate_discount(
+                obj.retail_price,
+                discount.type,
+                discount.value,
+            )
 
-        discount = obj.discounts.filter(
-            start_at__lte=now,
-            end_at__gte=now
-        ).order_by('-start_at', '-id').first()
+            if amount > best_amount:
+                best_discount = discount
+                best_amount = amount
 
-        if discount:
-            return DiscountSerializer(discount).data
-
-        return None
+        return (
+            DiscountSerializer(best_discount).data
+            if best_discount else None
+        )
 
     class Meta:
         model = ProductOption
         fields = [
-            'id',
-            'color',
-            'size',
-            'material',
-            'retail_price',
-            'wholesale_price',
-            'retail_original_price',
-            'retail_discount_price',
-            'retail_discount_percentage',
-            'wholesale_original_price',
-            'wholesale_discount_price',
-            'wholesale_discount_percentage',
-            'wholesale_min_quantity',
-            'stock',
-            'is_active',
-            'active_discount',
+            "id",
+            "color",
+            "size",
+            "material",
+            "retail_price",
+            "wholesale_price",
+            "retail_original_price",
+            "retail_discount_price",
             "retail_discount_amount",
+            "retail_discount_percentage",
+            "wholesale_original_price",
+            "wholesale_discount_price",
             "wholesale_discount_amount",
+            "stock",
+            "is_active",
+            "active_discount",
         ]
-
-
 class ProductOptionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductOption

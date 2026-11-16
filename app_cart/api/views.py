@@ -517,9 +517,10 @@ def cart_summary(request):
             "original_unit_price": unit_price,
             "original_total_price": original_total,
             "product_discount_amount": product_discount,
-            "product_discount_percentage": money(
-                discount_percentage * 100
-            ) / Decimal("100"),
+            "product_discount_percentage": discount_percentage.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP,
+            ),
             "total_price_after_product_discount": discounted_total,
         })
 

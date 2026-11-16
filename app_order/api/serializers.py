@@ -1,7 +1,23 @@
 from rest_framework import serializers
 from decimal import Decimal, ROUND_HALF_UP
-from app_order.models import Order, OrderItem, ShippingMethod ,CancellationRequest
-
+from app_order.models import (
+    Order,
+    OrderItem,
+    CancellationRequest,
+    ShippingMethod,
+)
+class ShippingMethodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShippingMethod
+        fields = [
+            "id",
+            "name",
+            "description",
+            "price",
+            "estimated_delivery_time",
+            
+        ]
+        read_only_fields = fields
 
 class OrderItemSerializer(serializers.ModelSerializer):
     original_total_price = serializers.SerializerMethodField()
@@ -42,22 +58,6 @@ class OrderItemSerializer(serializers.ModelSerializer):
         )
 
 
-class OrderItemSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OrderItem
-        fields = [
-            "id",
-            "product",
-            "product_option",
-            "product_snapshot",
-            "quantity",
-            "price_type",
-            "unit_price",
-            "discount_amount",
-            "total_price",
-            "created_at",
-        ]
-        read_only_fields = fields
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -210,3 +210,4 @@ class CancellationRequestSerializer(serializers.ModelSerializer):
             "reviewed_at",
         ]
         read_only_fields = fields
+

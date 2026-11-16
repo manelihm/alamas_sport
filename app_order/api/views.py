@@ -19,6 +19,7 @@ from app_order.api.serializers import (
     ShippingMethodSerializer,
 )
 from app_order.services import calculate_checkout, create_order
+from app_order.services import calculate_checkout, create_order, money
 
 
 
