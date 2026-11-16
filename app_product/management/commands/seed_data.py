@@ -137,12 +137,9 @@ class Command(BaseCommand):
     def create_products(self, categories, colors, sizes, materials):
         self.stdout.write('Updating products for Trending...')
 
-        
-            )
-
-    # آخرین ۱۵ محصولی که Seed ساخته است
+        # آخرین ۱۵ محصولی که Seed ساخته است
         products = list(
-         Product.objects.order_by('-id')[:15]
+            Product.objects.order_by('-id')[:15]
         )
 
         if len(products) < 15:
@@ -153,7 +150,7 @@ class Command(BaseCommand):
             )
             return
 
-    # مرتب‌سازی از قدیمی به جدید
+        # مرتب‌سازی از قدیمی به جدید
         products.reverse()
 
         for index, product in enumerate(products):
@@ -164,10 +161,10 @@ class Command(BaseCommand):
             product.trending_is_active = is_trending
 
             product.save(update_fields=[
-            'is_trending',
-            'trending_sort_order',
-            'trending_is_active',
-        ])
+                'is_trending',
+                'trending_sort_order',
+                'trending_is_active',
+            ])
 
         self.stdout.write(
             self.style.SUCCESS(
