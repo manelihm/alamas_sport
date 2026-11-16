@@ -1137,6 +1137,7 @@ def trending_product_list(request):
         is_active=True,
         is_trending=True,
         trending_is_active=True,
+        trending_home_content__is_active=True,
     ).order_by('trending_sort_order', 'id')
 
     serializer = ProductSerializer(
