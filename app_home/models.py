@@ -93,7 +93,6 @@ class Banner(models.Model):
 class HomeContent(models.Model):
     TYPE_CHOICES = [
         ('banner', 'Banner'),
-        ('trending', 'Trending'),
         ('discount', 'Discount'),
         ('category', 'Category'),
         ('company_info', 'Company Info'),
