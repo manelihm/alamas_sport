@@ -8,17 +8,18 @@ class UserManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
         if not phone_number:
             raise ValueError("Phone number is required")
+
         user = self.model(phone_number=phone_number, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
     def create_superuser(self, phone_number, password=None, **extra_fields):
-        extra_fields.setdefault('role', 'super_admin')
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        return self.create_user(phone_number, password, **extra_fields)
+        extra_fields["role"] = "super_admin"
+        extra_fields["is_staff"] = True
+        extra_fields["is_superuser"] = True
 
+        return self.create_user(phone_number, password, **extra_fields)
 
 class User(AbstractBaseUser, PermissionsMixin):
     STATUS_CHOICES = [
@@ -51,6 +52,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = []
 
+    def save(self, *args, **kwargs):
+        if self.role == "super_admin":
+            self.is_staff = True
+            self.is_superuser = True
+        elif self.role == "admin":
+            self.is_staff = True
+            self.is_superuser = False
+        else:
+            self.is_staff = False
+            self.is_superuser = False
+
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return self.phone_number
 

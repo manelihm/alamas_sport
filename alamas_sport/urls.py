@@ -37,8 +37,6 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     
-    path("admin/", admin.site.urls),
-    
     path("api/home/", include("app_home.api.urls")),
     path(
         "swagger/",
@@ -56,7 +54,13 @@ urlpatterns = [
     path('api/orders/', include('app_order.api.urls')),
 
     path("api/payments/", include("app_payment.api.urls")),
+
+    path("grappelli/", include("grappelli.urls")),
+    path("_nested_admin/", include("nested_admin.urls")),
+    path("admin/", admin.site.urls),
+
 ]
+
 
 if settings.DEBUG:
     urlpatterns += static(
