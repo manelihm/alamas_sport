@@ -3,7 +3,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
-
+from django.core.exceptions import ValidationError
 import os
 from io import BytesIO
 
@@ -187,6 +187,32 @@ class Discount(models.Model):
     end_at = models.DateTimeField()
 
 
+    def clean(self):
+        super().clean()
+        if self.start_at and self.end_at and self.end_at <= self.start_at:
+        raise ValidationError({
+            "end_at": "End date must be later than start date."
+            })
+
+        if self.value is not None and self.value <= 0:
+            raise ValidationError({
+                "value": "Discount value must be greater than zero."
+            })
+
+        if self.type == "percentage" and self.value is not None and self.value > 100:
+            raise ValidationError({
+                "value": "Percentage discount cannot exceed 100."
+            })
+
+        if (
+            self.type == "fixed"
+            and self.product_id
+            and self.value is not None
+            and self.value > self.product.retail_price
+            ):
+            raise ValidationError({
+                "value": "Fixed discount cannot exceed the retail price."
+            })
 
 
 
@@ -217,3 +243,21 @@ class DiscountCode(models.Model):
     used_at = models.DateTimeField(null=True, blank=True)
     start_at = models.DateTimeField()
     end_at = models.DateTimeField()
+
+    def clean(self):
+        super().clean()
+
+        if self.start_at and self.end_at and self.end_at <= self.start_at:
+            raise ValidationError({
+                "end_at": "End date must be later than start date."
+            })
+
+        if self.value is not None and self.value <= 0:
+            raise ValidationError({
+                "value": "Discount value must be greater than zero."
+            })
+
+        if self.type == "percentage" and self.value is not None and self.value > 100:
+            raise ValidationError({
+                "value": "Percentage discount cannot exceed 100."
+            })

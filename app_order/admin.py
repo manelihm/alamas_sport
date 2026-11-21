@@ -35,7 +35,8 @@ class OrderItemInline(admin.TabularInline):
 class OrderAdmin(admin.ModelAdmin):
     list_display = (
         "order_number",
-        "user",
+        "get_customer_name",
+        "get_customer_phone",
         "status",
         "order_type",
         "final_amount",
@@ -54,6 +55,15 @@ class OrderAdmin(admin.ModelAdmin):
         "user__phone_number",
         "user__first_name",
         "user__last_name",
+    )
+
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    list_per_page = 25
+    list_select_related = (
+        "user",
+        "shipping_address",
+        "shipping_method",
     )
 
     readonly_fields = (
@@ -78,7 +88,7 @@ class OrderAdmin(admin.ModelAdmin):
     inlines = (OrderItemInline,)
 
     fieldsets = (
-        ("Order", {
+        ("Order Information", {
             "fields": (
                 "order_number",
                 "status",
@@ -89,7 +99,7 @@ class OrderAdmin(admin.ModelAdmin):
                 "updated_at",
             )
         }),
-        ("Shipping", {
+        ("Shipping Information", {
             "fields": (
                 "shipping_method",
                 "shipping_method_name_snapshot",
@@ -100,7 +110,7 @@ class OrderAdmin(admin.ModelAdmin):
                 "tracking_code",
             )
         }),
-        ("Payment summary", {
+        ("Payment Summary", {
             "fields": (
                 "total_amount",
                 "discount_amount",
@@ -110,12 +120,23 @@ class OrderAdmin(admin.ModelAdmin):
                 "discount_code_value_snapshot",
             )
         }),
-        ("Internal note", {
+        ("Internal Note", {
             "fields": ("internal_note",)
         }),
     )
 
+    @admin.display(description="Customer Name", ordering="user__first_name")
+    def get_customer_name(self, obj):
+        if not obj.user:
+            return "—"
 
+        full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return full_name or obj.user.username
+
+    @admin.display(description="Customer Phone", ordering="user__phone_number")
+    def get_customer_phone(self, obj):
+        return obj.user.phone_number if obj.user else "—"
+        
 @admin.register(ShippingMethod)
 class ShippingMethodAdmin(admin.ModelAdmin):
     list_display = (
