@@ -9,12 +9,14 @@ from io import BytesIO
 
 from PIL import Image, ImageOps
 from django.core.files.base import ContentFile
-
+MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024
 
 def resize_product_image(uploaded_file):
     target_size = (1200, 1200)
 
     try:
+        if uploaded_file.size > MAX_PRODUCT_IMAGE_SIZE:
+            raise ValueError("Image size must not exceed 5 MB.")
         uploaded_file.seek(0)
 
         with Image.open(uploaded_file) as original:
@@ -75,7 +77,40 @@ class Category(models.Model):
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
+    def clean(self):
+        super().clean()
 
+        if not self.parent_id:
+            return
+
+        if self.pk and self.parent_id == self.pk:
+            raise ValidationError({
+                "parent": "A category cannot be its own parent."
+            })
+
+        current = self.parent
+        visited = set()
+
+        while current:
+            if current.pk in visited:
+                raise ValidationError({
+                    "parent": "Invalid category hierarchy detected."
+                })
+
+            visited.add(current.pk)
+
+            if self.pk and current.pk == self.pk:
+                raise ValidationError({
+                    "parent": "A category cannot be placed under its descendant."
+                })
+
+            current = current.parent
+
+    def __str__(self):
+        if self.parent_id:
+            return f"{self.parent} / {self.name}"
+
+        return self.name
 
 class Product(models.Model):
     category = models.ForeignKey(
@@ -189,9 +224,10 @@ class Discount(models.Model):
 
     def clean(self):
         super().clean()
+
         if self.start_at and self.end_at and self.end_at <= self.start_at:
-        raise ValidationError({
-            "end_at": "End date must be later than start date."
+            raise ValidationError({
+                "end_at": "End date must be later than start date."
             })
 
         if self.value is not None and self.value <= 0:
@@ -199,21 +235,21 @@ class Discount(models.Model):
                 "value": "Discount value must be greater than zero."
             })
 
-        if self.type == "percentage" and self.value is not None and self.value > 100:
-            raise ValidationError({
-                "value": "Percentage discount cannot exceed 100."
-            })
+        if self.type == "percentage" and self.value is not None:
+            if self.value > 100:
+                raise ValidationError({
+                    "value": "Percentage discount cannot exceed 100."
+                })
 
         if (
             self.type == "fixed"
             and self.product_id
             and self.value is not None
             and self.value > self.product.retail_price
-            ):
+        ):
             raise ValidationError({
                 "value": "Fixed discount cannot exceed the retail price."
             })
-
 
 
 class DiscountCode(models.Model):

@@ -32,6 +32,35 @@ class CategorySerializer(serializers.ModelSerializer):
             'description',
             'is_active'
         ]
+
+        def validate(self, attrs):
+            parent = attrs.get(
+                "parent",
+                self.instance.parent if self.instance else None
+            )
+
+            if not parent:
+                return attrs
+
+            current = parent
+            visited = set()
+
+            while current:
+                if current.pk in visited:
+                    raise serializers.ValidationError({
+                        "parent": "Invalid category hierarchy detected."
+                    })
+
+                visited.add(current.pk)
+
+                if self.instance and current.pk == self.instance.pk:
+                    raise serializers.ValidationError({
+                        "parent": "A category cannot be placed under its descendant."
+                    })
+
+                current = current.parent
+
+            return attrs
 class CategoryTreeSerializer(serializers.ModelSerializer):
     parent_name = serializers.CharField(
         source='parent.name',
@@ -186,28 +215,48 @@ class DiscountSerializer(serializers.ModelSerializer):
             context=self.context
         ).data
     def validate(self, attrs):
-        start_at = attrs.get('start_at', getattr(self.instance, 'start_at', None))
-        end_at = attrs.get('end_at', getattr(self.instance, 'end_at', None))
-        discount_type = attrs.get('type', getattr(self.instance, 'type', None))
-        value = attrs.get('value', getattr(self.instance, 'value', None))
+        start_at = attrs.get(
+            "start_at",
+            getattr(self.instance, "start_at", None)
+        )
+        end_at = attrs.get(
+            "end_at",
+            getattr(self.instance, "end_at", None)
+        )
+        discount_type = attrs.get(
+            "type",
+            getattr(self.instance, "type", None)
+        )
+        value = attrs.get(
+            "value",
+            getattr(self.instance, "value", None)
+        )
+        product = attrs.get(
+            "product",
+            getattr(self.instance, "product", None)
+        )
 
         if start_at and end_at and start_at >= end_at:
-            raise serializers.ValidationError(
-                {"end_at": "end_at must be after start_at."}
-            )
+            raise serializers.ValidationError({
+                "end_at": "End date must be after start date."
+            })
 
-        if discount_type == 'percentage' and value is not None:
-            if value <= 0 or value > 100:
+        if value is not None and value <= 0:
+            raise serializers.ValidationError({
+                "value": "Discount value must be greater than zero."
+            })
+
+        if discount_type == "percentage" and value is not None:
+            if value > 100:
                 raise serializers.ValidationError({
-                    "value": "Percentage discount must be greater than 0 and at most 100."
+                    "value": "Percentage discount cannot exceed 100."
                 })
 
-        if discount_type == 'fixed' and value is not None:
-            if value <= 0:
+        if discount_type == "fixed" and product and value is not None:
+            if value > product.retail_price:
                 raise serializers.ValidationError({
-                    "value": "Fixed discount must be greater than 0."
+                    "value": "Fixed discount cannot exceed the retail price."
                 })
-            
 
         return attrs
 class DiscountCodeSerializer(serializers.ModelSerializer):

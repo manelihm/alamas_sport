@@ -1,6 +1,5 @@
+from django import forms
 from django.contrib import admin
-from django.core.exceptions import ValidationError
-from django.utils import timezone
 import nested_admin
 
 from .models import (
@@ -14,6 +13,38 @@ from .models import (
     Discount,
     DiscountCode,
 )
+
+
+class CategoryAdminForm(forms.ModelForm):
+    class Meta:
+        model = Category
+        fields = "__all__"
+
+    def clean_parent(self):
+        parent = self.cleaned_data.get("parent")
+
+        if not parent:
+            return None
+
+        current = parent
+        visited = set()
+
+        while current:
+            if current.pk in visited:
+                raise forms.ValidationError(
+                    "Invalid category hierarchy detected."
+                )
+
+            visited.add(current.pk)
+
+            if self.instance.pk and current.pk == self.instance.pk:
+                raise forms.ValidationError(
+                    "A category cannot be placed under its descendant."
+                )
+
+            current = current.parent
+
+        return parent
 
 
 @admin.action(description="Activate selected categories")
@@ -42,13 +73,18 @@ class ProductOptionInline(nested_admin.NestedStackedInline):
     model = ProductOption
     extra = 1
     readonly_fields = ("reserved_stock",)
+
     fields = (
         ("color", "size", "material"),
         ("retail_price", "wholesale_price"),
         "wholesale_min_quantity",
         ("stock", "reserved_stock", "is_active"),
     )
-    inlines = (ProductImageInline, DiscountInline)
+
+    inlines = (
+        ProductImageInline,
+        DiscountInline,
+    )
 
 
 @admin.register(Product)
@@ -63,6 +99,7 @@ class ProductAdmin(nested_admin.NestedModelAdmin):
         "is_trending",
         "trending_is_active",
     )
+
     list_filter = (
         "category",
         "gender",
@@ -70,31 +107,47 @@ class ProductAdmin(nested_admin.NestedModelAdmin):
         "is_trending",
         "trending_is_active",
     )
-    search_fields = ("name", "brand", "description")
-    ordering = ("id",)
+
+    search_fields = (
+        "name",
+        "brand",
+        "description",
+    )
+
+    ordering = ("-id",)
     list_per_page = 25
     list_select_related = ("category",)
+    save_on_top = True
 
     fieldsets = (
-        ("Product Information", {
-            "fields": (
-                "name",
-                "description",
-                "category",
-                "brand",
-                "gender",
-            )
-        }),
-        ("Product Status", {
-            "fields": ("is_active",)
-        }),
-        ("Trending Settings", {
-            "fields": (
-                "is_trending",
-                "trending_is_active",
-                "trending_sort_order",
-            )
-        }),
+        (
+            "Product Information",
+            {
+                "fields": (
+                    "name",
+                    "description",
+                    "category",
+                    "brand",
+                    "gender",
+                )
+            },
+        ),
+        (
+            "Product Status",
+            {
+                "fields": ("is_active",)
+            },
+        ),
+        (
+            "Trending Settings",
+            {
+                "fields": (
+                    "is_trending",
+                    "trending_is_active",
+                    "trending_sort_order",
+                )
+            },
+        ),
     )
 
     inlines = (ProductOptionInline,)
@@ -102,42 +155,32 @@ class ProductAdmin(nested_admin.NestedModelAdmin):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "parent", "is_active")
+    form = CategoryAdminForm
+
+    list_display = (
+        "id",
+        "name",
+        "parent",
+        "is_active",
+    )
+
     list_filter = ("is_active",)
-    search_fields = ("name", "description", "parent__name")
+
+    search_fields = (
+        "name",
+        "description",
+        "parent__name",
+    )
+
     ordering = ("parent__name", "name")
     list_select_related = ("parent",)
     list_per_page = 25
-    actions = (activate_categories, deactivate_categories)
 
-    def save_model(self, request, obj, form, change):
-        if obj.parent_id == obj.pk and obj.pk:
-            raise ValidationError("A category cannot be its own parent.")
-        super().save_model(request, obj, form, change)
-    def clean_parent(self):
-        parent = self.cleaned_data.get("parent")
+    actions = (
+        activate_categories,
+        deactivate_categories,
+    )
 
-        if not parent:
-            return None
-
-        current = parent
-        visited = set()
-
-        while current:
-            if self.instance.pk and current.pk == self.instance.pk:
-                raise forms.ValidationError(
-                    "A category cannot be its own parent or a parent of its ancestor."
-                )
-
-            if current.pk in visited:
-                raise forms.ValidationError(
-                    "Invalid category hierarchy detected."
-                )
-
-            visited.add(current.pk)
-            current = current.parent
-
-        return parent
 
 @admin.register(ProductColor)
 class ProductColorAdmin(admin.ModelAdmin):
@@ -160,12 +203,73 @@ class ProductMaterialAdmin(admin.ModelAdmin):
     ordering = ("name",)
 
 
+@admin.register(ProductOption)
+class ProductOptionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "product",
+        "color",
+        "size",
+        "material",
+        "retail_price",
+        "wholesale_price",
+        "wholesale_min_quantity",
+        "stock",
+        "reserved_stock",
+        "is_active",
+    )
+
+    list_filter = (
+        "color",
+        "size",
+        "material",
+        "is_active",
+    )
+
+    search_fields = (
+        "product__name",
+        "color__name",
+        "size__name",
+        "material__name",
+    )
+
+    readonly_fields = ("reserved_stock",)
+    list_select_related = (
+        "product",
+        "color",
+        "size",
+        "material",
+    )
+    ordering = ("-id",)
+    list_per_page = 25
+
+
 @admin.register(ProductImage)
 class ProductImageAdmin(admin.ModelAdmin):
-    list_display = ("id", "product", "get_product_name", "image_url", "is_primary")
+    list_display = (
+        "id",
+        "get_product_name",
+        "product",
+        "image_url",
+        "is_primary",
+    )
+
     list_filter = ("is_primary",)
-    search_fields = ("product__product__name", "product__color__name")
-    list_select_related = ("product", "product__product")
+
+    search_fields = (
+        "product__product__name",
+        "product__color__name",
+        "product__size__name",
+    )
+
+    list_select_related = (
+        "product",
+        "product__product",
+        "product__color",
+        "product__size",
+    )
+
+    ordering = ("-id",)
     list_per_page = 25
 
     @admin.display(description="Product")
@@ -184,10 +288,25 @@ class DiscountAdmin(admin.ModelAdmin):
         "start_at",
         "end_at",
     )
-    list_filter = ("type", "start_at", "end_at")
-    search_fields = ("product__product__name",)
+
+    list_filter = (
+        "type",
+        "start_at",
+        "end_at",
+    )
+
+    search_fields = (
+        "product__product__name",
+        "product__color__name",
+        "product__size__name",
+    )
+
+    list_select_related = (
+        "product",
+        "product__product",
+    )
+
     ordering = ("-start_at",)
-    list_select_related = ("product", "product__product")
     list_per_page = 25
 
     @admin.display(description="Product")
@@ -200,13 +319,33 @@ class DiscountCodeAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "code",
+        "assigned_to",
         "type",
         "value",
+        "is_used",
+        "used_by",
+        "start_at",
+        "end_at",
+    )
+
+    list_filter = (
+        "type",
         "is_used",
         "start_at",
         "end_at",
     )
-    list_filter = ("type", "is_used")
-    search_fields = ("code",)
-    readonly_fields = ("is_used", "used_by", "used_at")
+
+    search_fields = (
+        "code",
+        "assigned_to__username",
+        "used_by__username",
+    )
+
+    readonly_fields = (
+        "is_used",
+        "used_by",
+        "used_at",
+    )
+
+    ordering = ("-id",)
     list_per_page = 25
