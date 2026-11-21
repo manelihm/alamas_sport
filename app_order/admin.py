@@ -241,7 +241,7 @@ class CancellationRequestAdmin(admin.ModelAdmin):
         "created_at",
         "reviewed_at",
     )
-actions = (
+    actions = (
         "approve_cancellation_requests",
         "reject_cancellation_requests",
     )
