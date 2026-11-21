@@ -253,9 +253,12 @@ class DiscountSerializer(serializers.ModelSerializer):
                 })
 
         if discount_type == "fixed" and product and value is not None:
-            if value > product.retail_price:
+            if (
+                value > product.retail_price
+                or value > product.wholesale_price
+            ):
                 raise serializers.ValidationError({
-                    "value": "Fixed discount cannot exceed the retail price."
+                    "value": "Fixed discount cannot exceed the retail or wholesale price."
                 })
 
         return attrs

@@ -245,10 +245,13 @@ class Discount(models.Model):
             self.type == "fixed"
             and self.product_id
             and self.value is not None
-            and self.value > self.product.retail_price
+            and (
+                self.value > self.product.retail_price
+                or self.value > self.product.wholesale_price
+            )
         ):
             raise ValidationError({
-                "value": "Fixed discount cannot exceed the retail price."
+                "value": "Fixed discount cannot exceed the retail or wholesale price."
             })
 
 
