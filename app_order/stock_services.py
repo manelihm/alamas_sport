@@ -186,13 +186,50 @@ def cancel_order_stock(order_id):
             reservation.status = StockReservation.Status.RELEASED
             reservation.save(update_fields=["status", "updated_at"])
 
-    DiscountCodeReservation.objects.filter(
-        order=order,
-        status=DiscountCodeReservation.Status.ACTIVE,
-    ).update(
-        status=DiscountCodeReservation.Status.RELEASED,
-        updated_at=timezone.now(),
+    discount_reservations = list(
+        DiscountCodeReservation.objects.select_for_update()
+        .filter(order=order)
+        .select_related("discount_code")
     )
+
+    for reservation in discount_reservations:
+        if reservation.status in (
+            DiscountCodeReservation.Status.ACTIVE,
+            DiscountCodeReservation.Status.CONSUMED,
+        ):
+            discount_code = DiscountCode.objects.select_for_update().get(
+                id=reservation.discount_code_id
+            )
+
+            if (
+                reservation.status == DiscountCodeReservation.Status.CONSUMED
+                and discount_code.used_by_id == order.user_id
+            ):
+                discount_code.is_used = False
+                discount_code.used_by = None
+                discount_code.used_at = None
+                discount_code.save(
+                    update_fields=["is_used", "used_by", "used_at"]
+                )
+
+            reservation.status = DiscountCodeReservation.Status.RELEASED
+            reservation.save(update_fields=["status", "updated_at"])
+
+    # Free orders consume their discount code without creating a reservation.
+    if order.discount_code_snapshot and not discount_reservations:
+        discount_code = DiscountCode.objects.select_for_update().filter(
+            code=order.discount_code_snapshot,
+            is_used=True,
+            used_by_id=order.user_id,
+        ).first()
+
+        if discount_code:
+            discount_code.is_used = False
+            discount_code.used_by = None
+            discount_code.used_at = None
+            discount_code.save(
+                update_fields=["is_used", "used_by", "used_at"]
+            )
 
     return order
 @transaction.atomic
