@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
 from drf_yasg.utils import swagger_auto_schema
-from app_order.stock_services import release_order_stock
+from app_order.stock_services import cancel_order_stock
 from app_order.models import Order, CancellationRequest,ShippingMethod
 from app_order.api.serializers import (
     Order,
@@ -412,13 +412,13 @@ def cancellation_approve(request, pk):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        release_order_stock(order.id)
+        cancel_order_stock(order.id)
 
         order.status = Order.Status.CANCELLED
         order.save(update_fields=["status", "updated_at"])
 
         cancellation_request.approve(
-            reviewer=request.user,
+            admin_user=request.user,
             note=request.data.get("admin_note", ""),
         )
 
@@ -453,7 +453,7 @@ def cancellation_reject(request, pk):
             )
 
         cancellation_request.reject(
-            reviewer=request.user,
+            admin_user=request.user,
             note=request.data.get("admin_note", ""),
         )
 

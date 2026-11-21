@@ -70,6 +70,7 @@ class OrderAdmin(admin.ModelAdmin):
         "order_number",
         "user",
         "cart",
+        "status",
         "shipping_address",
         "shipping_method_name_snapshot",
         "estimated_delivery_time_snapshot",
@@ -136,7 +137,54 @@ class OrderAdmin(admin.ModelAdmin):
     @admin.display(description="Customer Phone", ordering="user__phone_number")
     def get_customer_phone(self, obj):
         return obj.user.phone_number if obj.user else "—"
-        
+        actions = (
+        "mark_in_progress",
+        "mark_shipped",
+        "mark_delivered",
+    )
+
+    def _set_order_status(self, request, queryset, new_status, allowed_statuses):
+        updated_count = 0
+
+        for order in queryset:
+            if order.status not in allowed_statuses:
+                continue
+
+            order.status = new_status
+            order.save(update_fields=["status", "updated_at"])
+            updated_count += 1
+
+        self.message_user(
+            request,
+            f"{updated_count} order(s) updated.",
+        )
+
+    @admin.action(description="Mark selected orders as in progress")
+    def mark_in_progress(self, request, queryset):
+        self._set_order_status(
+            request,
+            queryset,
+            Order.Status.IN_PROGRESS,
+            [Order.Status.CONFIRMED],
+        )
+
+    @admin.action(description="Mark selected orders as shipped")
+    def mark_shipped(self, request, queryset):
+        self._set_order_status(
+            request,
+            queryset,
+            Order.Status.SHIPPED,
+            [Order.Status.IN_PROGRESS],
+        )
+
+    @admin.action(description="Mark selected orders as delivered")
+    def mark_delivered(self, request, queryset):
+        self._set_order_status(
+            request,
+            queryset,
+            Order.Status.DELIVERED,
+            [Order.Status.SHIPPED],
+        )
 @admin.register(ShippingMethod)
 class ShippingMethodAdmin(admin.ModelAdmin):
     list_display = (

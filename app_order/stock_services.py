@@ -147,7 +147,54 @@ def release_order_stock(order_id, expired=False):
     )
 
     return order
+@transaction.atomic
+def cancel_order_stock(order_id):
+    order = Order.objects.select_for_update().filter(id=order_id).first()
 
+    if not order:
+        raise ValidationError("Order not found.")
+
+    reservations = list(
+        StockReservation.objects.select_for_update()
+        .filter(order_item__order=order)
+        .select_related("product_option")
+        .order_by("id")
+    )
+
+    for reservation in reservations:
+        if reservation.status == StockReservation.Status.ACTIVE:
+            updated = ProductOption.objects.filter(
+                id=reservation.product_option_id,
+                reserved_stock__gte=reservation.quantity,
+            ).update(
+                reserved_stock=F("reserved_stock") - reservation.quantity
+            )
+
+            if updated != 1:
+                raise ValidationError("Unable to release reserved stock.")
+
+            reservation.status = StockReservation.Status.RELEASED
+            reservation.save(update_fields=["status", "updated_at"])
+
+        elif reservation.status == StockReservation.Status.COMMITTED:
+            ProductOption.objects.filter(
+                id=reservation.product_option_id,
+            ).update(
+                stock=F("stock") + reservation.quantity
+            )
+
+            reservation.status = StockReservation.Status.RELEASED
+            reservation.save(update_fields=["status", "updated_at"])
+
+    DiscountCodeReservation.objects.filter(
+        order=order,
+        status=DiscountCodeReservation.Status.ACTIVE,
+    ).update(
+        status=DiscountCodeReservation.Status.RELEASED,
+        updated_at=timezone.now(),
+    )
+
+    return order
 @transaction.atomic
 def complete_paid_order(order_id):
     """
