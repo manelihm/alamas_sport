@@ -137,7 +137,8 @@ class OrderAdmin(admin.ModelAdmin):
     @admin.display(description="Customer Phone", ordering="user__phone_number")
     def get_customer_phone(self, obj):
         return obj.user.phone_number if obj.user else "—"
-        actions = (
+
+    actions = (
         "mark_in_progress",
         "mark_shipped",
         "mark_delivered",
@@ -154,10 +155,7 @@ class OrderAdmin(admin.ModelAdmin):
             order.save(update_fields=["status", "updated_at"])
             updated_count += 1
 
-        self.message_user(
-            request,
-            f"{updated_count} order(s) updated.",
-        )
+        self.message_user(request, f"{updated_count} order(s) updated.")
 
     @admin.action(description="Mark selected orders as in progress")
     def mark_in_progress(self, request, queryset):
@@ -185,6 +183,8 @@ class OrderAdmin(admin.ModelAdmin):
             Order.Status.DELIVERED,
             [Order.Status.SHIPPED],
         )
+
+
 @admin.register(ShippingMethod)
 class ShippingMethodAdmin(admin.ModelAdmin):
     list_display = (
@@ -222,6 +222,7 @@ class CancellationRequestAdmin(admin.ModelAdmin):
         "order",
         "user",
         "reason",
+        "status",
         "reviewed_by",
         "created_at",
         "reviewed_at",
