@@ -33,34 +33,34 @@ class CategorySerializer(serializers.ModelSerializer):
             'is_active'
         ]
 
-        def validate(self, attrs):
-            parent = attrs.get(
-                "parent",
-                self.instance.parent if self.instance else None
-            )
+    def validate(self, attrs):
+        parent = attrs.get(
+            "parent",
+            self.instance.parent if self.instance else None
+        )
 
-            if not parent:
-                return attrs
-
-            current = parent
-            visited = set()
-
-            while current:
-                if current.pk in visited:
-                    raise serializers.ValidationError({
-                        "parent": "Invalid category hierarchy detected."
-                    })
-
-                visited.add(current.pk)
-
-                if self.instance and current.pk == self.instance.pk:
-                    raise serializers.ValidationError({
-                        "parent": "A category cannot be placed under its descendant."
-                    })
-
-                current = current.parent
-
+        if not parent:
             return attrs
+
+        current = parent
+        visited = set()
+
+        while current:
+            if current.pk in visited:
+                raise serializers.ValidationError({
+                    "parent": "Invalid category hierarchy detected."
+                })
+
+            visited.add(current.pk)
+
+            if self.instance and current.pk == self.instance.pk:
+                raise serializers.ValidationError({
+                    "parent": "A category cannot be placed under its descendant."
+                })
+
+            current = current.parent
+
+        return attrs
 class CategoryTreeSerializer(serializers.ModelSerializer):
     parent_name = serializers.CharField(
         source='parent.name',
