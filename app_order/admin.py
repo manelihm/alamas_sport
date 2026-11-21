@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.utils import timezone
+from django.db import transaction
+from django.contrib import messages
 
+from .stock_services import cancel_order_stock
 from .models import (
     ShippingMethod,
     Order,
@@ -238,7 +241,84 @@ class CancellationRequestAdmin(admin.ModelAdmin):
         "created_at",
         "reviewed_at",
     )
+actions = (
+        "approve_cancellation_requests",
+        "reject_cancellation_requests",
+    )
 
+    @admin.action(description="Approve selected cancellation requests")
+    def approve_cancellation_requests(self, request, queryset):
+        approved_count = 0
+
+        for item in queryset:
+            with transaction.atomic():
+                cancellation_request = (
+                    CancellationRequest.objects
+                    .select_for_update()
+                    .get(pk=item.pk)
+                )
+
+                if cancellation_request.status != CancellationRequest.Status.PENDING:
+                    continue
+
+                order = Order.objects.select_for_update().get(
+                    pk=cancellation_request.order_id
+                )
+
+                allowed_statuses = [
+                    Order.Status.PENDING,
+                    Order.Status.CONFIRMED,
+                    Order.Status.IN_PROGRESS,
+                ]
+
+                if order.status not in allowed_statuses:
+                    continue
+
+                cancel_order_stock(order.id)
+
+                order.status = Order.Status.CANCELLED
+                order.save(update_fields=["status", "updated_at"])
+
+                cancellation_request.approve(
+                    admin_user=request.user,
+                    note=cancellation_request.admin_note,
+                )
+
+                approved_count += 1
+
+        self.message_user(
+            request,
+            f"{approved_count} cancellation request(s) approved.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Reject selected cancellation requests")
+    def reject_cancellation_requests(self, request, queryset):
+        rejected_count = 0
+
+        for item in queryset:
+            with transaction.atomic():
+                cancellation_request = (
+                    CancellationRequest.objects
+                    .select_for_update()
+                    .get(pk=item.pk)
+                )
+
+                if cancellation_request.status != CancellationRequest.Status.PENDING:
+                    continue
+
+                cancellation_request.reject(
+                    admin_user=request.user,
+                    note=cancellation_request.admin_note,
+                )
+
+                rejected_count += 1
+
+        self.message_user(
+            request,
+            f"{rejected_count} cancellation request(s) rejected.",
+            messages.SUCCESS,
+        )
     def has_add_permission(self, request):
         return False
 
