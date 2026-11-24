@@ -3,6 +3,7 @@ from django.contrib import admin
 import nested_admin
 
 from .models import (
+    Brand,
     Category,
     Product,
     ProductColor,
@@ -110,7 +111,7 @@ class ProductAdmin(nested_admin.NestedModelAdmin):
 
     search_fields = (
         "name",
-        "brand",
+        "brand__name",
         "description",
     )
 
@@ -349,3 +350,11 @@ class DiscountCodeAdmin(admin.ModelAdmin):
 
     ordering = ("-id",)
     list_per_page = 25
+
+
+@admin.register(Brand)
+class BrandAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['name']
+    ordering = ['name']

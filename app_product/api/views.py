@@ -22,17 +22,33 @@ from django.db import IntegrityError ,transaction
 
 
 from app_product.models import (
-    Category, Product, ProductImage,
+    Brand,Category, Product, ProductImage,
     ProductColor, ProductSize, ProductMaterial,
     ProductOption, Discount
 )
 from app_product.api.serializers import (
-    CategorySerializer, ProductSerializer, ProductDetailSerializer,
+    BrandSerializer,CategorySerializer, ProductSerializer, ProductDetailSerializer,
     ProductColorSerializer, ProductSizeSerializer,
     ProductMaterialSerializer, ProductOptionCreateSerializer, DiscountSerializer ,DiscountCodeSerializer, DiscountCodeApplySerializer ,ProductImageReadSerializer,
     ProductImageUploadSerializer,CategoryTreeSerializer
 )
 
+
+@swagger_auto_schema(
+    method='get',
+    operation_summary="List active brands",
+    operation_description="Returns active brands assigned to active products.",
+    responses={200: BrandSerializer(many=True)}
+)
+@api_view(['GET'])
+def brand_list(request):
+    brands = Brand.objects.filter(
+        is_active=True,
+        products__is_active=True,
+    ).distinct().order_by('name')
+
+    serializer = BrandSerializer(brands, many=True)
+    return Response(serializer.data)
 
 # ---------- Category ----------
 
@@ -175,8 +191,8 @@ def category_delete(request, pk):
         ),
         openapi.Parameter(
             'brand', openapi.IN_QUERY,
-            description="Filter by brand",
-            type=openapi.TYPE_STRING,
+            description="Filter by brand ID",
+            type=openapi.TYPE_INTEGER,
         ),
         openapi.Parameter(
             'gender', openapi.IN_QUERY,
@@ -203,15 +219,46 @@ def product_list(request):
 
     brand = request.query_params.get('brand')
     if brand:
-        products = products.filter(brand__icontains=brand)
+        if not brand.isdigit():
+            return Response(
+                {'error': 'brand must be a valid brand ID.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        products = products.filter(brand_id=int(brand))
 
     gender = request.query_params.get('gender')
     if gender:
         products = products.filter(gender__iexact=gender)
 
     paginator = Paginator(products, 10)
-    page_number = request.query_params.get('page', 1)
-    page_obj = paginator.get_page(page_number)
+
+    raw_page_number = request.query_params.get('page', '1')
+
+    try:
+        page_number = int(raw_page_number)
+    except (TypeError, ValueError):
+        return Response(
+            {'error': 'page must be a positive integer.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if page_number < 1:
+        return Response(
+            {'error': 'page must be a positive integer.'},
+            status=status.HTTP_400_BAD_REQUEST
+    )
+
+    if page_number > paginator.num_pages:
+        return Response({
+            "count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_number,
+            "data": [],
+            "message": "No products found on this page.",
+        })
+
+    page_obj = paginator.page(page_number)
 
     serializer = ProductSerializer(
     page_obj.object_list,
@@ -238,7 +285,10 @@ def product_list(request):
         properties={
             'name': openapi.Schema(type=openapi.TYPE_STRING),
             'category': openapi.Schema(type=openapi.TYPE_INTEGER),
-            'brand': openapi.Schema(type=openapi.TYPE_STRING),
+            'brand': openapi.Schema(
+                type=openapi.TYPE_INTEGER,
+                description='Brand ID',
+            ),
             'gender': openapi.Schema(type=openapi.TYPE_STRING),
             'color': openapi.Schema(type=openapi.TYPE_INTEGER),
             'size': openapi.Schema(type=openapi.TYPE_INTEGER),
@@ -295,15 +345,22 @@ def product_search(request):
     if name:
         products = products.filter(
             Q(name__icontains=name) |
-            Q(brand__icontains=name)
+            Q(brand__name__icontains=name)
         )
+
+
+
+    products = products.filter(brand_id=int(brand))
 
     if category is not None:
         products = products.filter(category_id=category)
 
-    if brand:
-        products = products.filter(brand__icontains=brand)
-
+    if brand is not None:
+        if not str(brand).isdigit():
+            return Response(
+                {'error': 'brand must be a valid brand ID.'},
+                status=status.HTTP_400_BAD_REQUEST
+        )
     if gender:
         products = products.filter(gender__iexact=gender)
 

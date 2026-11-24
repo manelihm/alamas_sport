@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 from app_product.models import (
-    Category, Product, ProductImage,
+    Brand,Category, Product, ProductImage,
     ProductColor, ProductSize, ProductMaterial,
     ProductOption, Discount, DiscountCode
 )
@@ -490,7 +490,10 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             many=True,
             context=self.context
         ).data
-
+class BrandSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ['id', 'name']
 
 
 

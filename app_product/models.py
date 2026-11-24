@@ -122,7 +122,6 @@ class Product(models.Model):
 )
     name = models.CharField(max_length=50)
     description = models.TextField()
-    brand = models.CharField(max_length=100, blank=True)
     gender = models.CharField(max_length=50, blank=True)
     is_active = models.BooleanField(default=True)
     is_trending = models.BooleanField(default=False)
@@ -141,12 +140,18 @@ class ProductSize(models.Model):
 class ProductMaterial(models.Model):
     name = models.CharField(max_length=122)
     description = models.TextField(blank=True)
+class Brand(models.Model):
+    name=models.CharField(max_length=100,unique=True)
+    is_active=models.BooleanField(default=True)
 
+    def __str__(self):
+        return self.name
 
 class ProductOption(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="options")
     color = models.ForeignKey(ProductColor, on_delete=models.CASCADE, related_name="options")
     size = models.ForeignKey(ProductSize, on_delete=models.CASCADE, related_name="options")
+    brand = models.ForeignKey(Brand,on_delete=models.SET_NULL,null=True,blank=True,related_name="options")
     material = models.ForeignKey(ProductMaterial ,on_delete=models.CASCADE,related_name="options")
     retail_price = models.DecimalField(
         max_digits=10,

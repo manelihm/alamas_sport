@@ -77,6 +77,7 @@ urlpatterns = [
     path('discount-codes/<int:pk>/update/', views.discount_code_update),
     path('discount-codes/<int:pk>/delete/', views.discount_code_delete),
     path('products/trending/', views.trending_product_list),
+    path('brands/', views.brand_list),
 ]
 
 if settings.DEBUG:

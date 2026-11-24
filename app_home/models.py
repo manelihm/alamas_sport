@@ -6,7 +6,7 @@ from PIL import Image, ImageOps
 from django.core.files.base import ContentFile
 
 def resize_banner_image(uploaded_file):
-    target_size = (1920, 650)
+    target_size = (1920, 1080)
 
     try:
         uploaded_file.seek(0)
@@ -23,7 +23,7 @@ def resize_banner_image(uploaded_file):
                 Image.Resampling.LANCZOS
             )
 
-            canvas = Image.new("RGB", target_size, "white")
+            canvas = Image.new("RGB", target_size, "black")
 
             x = (target_size[0] - image.width) // 2
             y = (target_size[1] - image.height) // 2
