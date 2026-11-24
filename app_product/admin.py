@@ -88,13 +88,15 @@ class ProductOptionInline(nested_admin.NestedStackedInline):
     )
 
 
+
+
 @admin.register(Product)
 class ProductAdmin(nested_admin.NestedModelAdmin):
     list_display = (
         "id",
         "name",
         "category",
-        "brand",
+        "product_brands",
         "gender",
         "is_active",
         "is_trending",
@@ -111,7 +113,7 @@ class ProductAdmin(nested_admin.NestedModelAdmin):
 
     search_fields = (
         "name",
-        "brand__name",
+        "options__brand__name",
         "description",
     )
 
@@ -128,7 +130,6 @@ class ProductAdmin(nested_admin.NestedModelAdmin):
                     "name",
                     "description",
                     "category",
-                    "brand",
                     "gender",
                 )
             },
@@ -153,6 +154,15 @@ class ProductAdmin(nested_admin.NestedModelAdmin):
 
     inlines = (ProductOptionInline,)
 
+    @admin.display(description="Brands")
+    def product_brands(self, obj):
+        brands = (
+            obj.options
+            .filter(brand__isnull=False)
+            .values_list("brand__name", flat=True)
+            .distinct()
+        )
+        return ", ".join(brands) or "—"
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
