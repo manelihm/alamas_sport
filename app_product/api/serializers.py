@@ -428,20 +428,27 @@ class ProductOptionSerializer(serializers.ModelSerializer):
             "active_discount",
         ]
 class ProductOptionCreateSerializer(serializers.ModelSerializer):
+    brand = serializers.PrimaryKeyRelatedField(
+        queryset=Brand.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+
     class Meta:
         model = ProductOption
         fields = [
-            'id', 'product', 'color', 'size', 'material',
+            'id', 'product', 'color', 'size', 'brand', 'material',
             'retail_price', 'wholesale_price', 'wholesale_min_quantity',
             'stock', 'is_active',
-                ]
-
+        ]
 class ProductSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
+    brands = serializers.SerializerMethodField()
     options = ProductOptionSerializer(
-    many=True,
-    read_only=True
-)
+        many=True,
+        read_only=True
+    )
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         allow_null=True,
@@ -450,7 +457,11 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images' ,'options','is_trending','trending_sort_order','trending_is_active',]
+        fields = [
+            'id', 'category', 'name', 'description', 'gender',
+            'is_active', 'images', 'brands', 'options',
+            'is_trending', 'trending_sort_order', 'trending_is_active',
+        ]
 
     def get_images(self, obj):
         images = (
@@ -464,10 +475,28 @@ class ProductSerializer(serializers.ModelSerializer):
             many=True,
             context=self.context
         ).data
-    
+
+    def get_brands(self, obj):
+        brands = Brand.objects.filter(
+            options__product=obj,
+            options__is_active=True,
+            is_active=True,
+        ).distinct().order_by('name')
+
+        return BrandSerializer(
+            brands,
+            many=True,
+            context=self.context
+        ).data
+
+
 class ProductDetailSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
-    options = ProductOptionSerializer(many=True, read_only=True)
+    brands = serializers.SerializerMethodField()
+    options = ProductOptionSerializer(
+        many=True,
+        read_only=True
+    )
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         allow_null=True,
@@ -476,7 +505,11 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'category', 'name', 'description', 'brand', 'gender', 'is_active', 'images', 'options','is_trending','trending_sort_order','trending_is_active',]
+        fields = [
+            'id', 'category', 'name', 'description', 'gender',
+            'is_active', 'images', 'brands', 'options',
+            'is_trending', 'trending_sort_order', 'trending_is_active',
+        ]
 
     def get_images(self, obj):
         images = (
@@ -487,6 +520,19 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         )
         return ProductImageReadSerializer(
             images,
+            many=True,
+            context=self.context
+        ).data
+
+    def get_brands(self, obj):
+        brands = Brand.objects.filter(
+            options__product=obj,
+            options__is_active=True,
+            is_active=True,
+        ).distinct().order_by('name')
+
+        return BrandSerializer(
+            brands,
             many=True,
             context=self.context
         ).data

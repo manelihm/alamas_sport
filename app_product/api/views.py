@@ -37,19 +37,19 @@ from app_product.api.serializers import (
 @swagger_auto_schema(
     method='get',
     operation_summary="List active brands",
-    operation_description="Returns active brands assigned to active products.",
+    operation_description="Returns active brands assigned to active product options of active products.",
     responses={200: BrandSerializer(many=True)}
 )
 @api_view(['GET'])
 def brand_list(request):
     brands = Brand.objects.filter(
         is_active=True,
-        products__is_active=True,
+        options__is_active=True,
+        options__product__is_active=True,
     ).distinct().order_by('name')
 
     serializer = BrandSerializer(brands, many=True)
     return Response(serializer.data)
-
 # ---------- Category ----------
 
 @swagger_auto_schema(
@@ -225,7 +225,10 @@ def product_list(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        products = products.filter(brand_id=int(brand))
+        products = products.filter(
+            options__brand_id=int(brand),
+            options__is_active=True,
+            ).distinct()
 
     gender = request.query_params.get('gender')
     if gender:
@@ -343,14 +346,10 @@ def product_search(request):
 
     # Basic filters
     if name:
-        products = products.filter(
-            Q(name__icontains=name) |
-            Q(brand__name__icontains=name)
-        )
-
-
-
-    products = products.filter(brand_id=int(brand))
+    products = products.filter(
+        Q(name__icontains=name) |
+        Q(options__brand__name__icontains=name)
+    )
 
     if category is not None:
         products = products.filter(category_id=category)
@@ -360,6 +359,11 @@ def product_search(request):
             return Response(
                 {'error': 'brand must be a valid brand ID.'},
                 status=status.HTTP_400_BAD_REQUEST
+        )
+
+        products = products.filter(
+            options__brand_id=int(brand),
+            options__is_active=True,
         )
     if gender:
         products = products.filter(gender__iexact=gender)
