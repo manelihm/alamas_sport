@@ -346,10 +346,10 @@ def product_search(request):
 
     # Basic filters
     if name:
-    products = products.filter(
-        Q(name__icontains=name) |
-        Q(options__brand__name__icontains=name)
-    )
+        products = products.filter(
+            Q(name__icontains=name) |
+            Q(options__brand__name__icontains=name)
+        )
 
     if category is not None:
         products = products.filter(category_id=category)
