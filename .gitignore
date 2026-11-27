@@ -5,7 +5,6 @@ db.sqlite3
 .env
 /media/
 # uploaded media files (e.g. banner images), not part of the source code
-banner/
 # Static files collected by Django
 staticfiles/
 
