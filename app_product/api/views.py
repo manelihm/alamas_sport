@@ -43,10 +43,8 @@ from app_product.api.serializers import (
 @api_view(['GET'])
 def brand_list(request):
     brands = Brand.objects.filter(
-        is_active=True,
-        options__is_active=True,
-        options__product__is_active=True,
-    ).distinct().order_by('name')
+        is_active=True
+    ).order_by('name')
 
     serializer = BrandSerializer(brands, many=True)
     return Response(serializer.data)
