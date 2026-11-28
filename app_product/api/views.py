@@ -528,20 +528,120 @@ def product_search(request):
         'message': 'Products retrieved successfully',
     })
 @swagger_auto_schema(
-    method='get',
+    method="get",
     operation_summary="Get product detail",
-    operation_description="Returns full details of a product including images and options (each option has its own color, size, material, price, stock, and active discount if any).",
-    responses={200: ProductDetailSerializer, 404: "Product not found"}
+    operation_description=(
+        "Returns product details, all available colors, sizes, and materials, "
+        "images grouped by color, and a default purchasable option. "
+        "Pass color_id to select a color or option_id to select an exact option."
+    ),
+    manual_parameters=[
+        openapi.Parameter(
+            "color_id",
+            openapi.IN_QUERY,
+            description="Optional color ID",
+            type=openapi.TYPE_INTEGER,
+            required=False,
+        ),
+        openapi.Parameter(
+            "option_id",
+            openapi.IN_QUERY,
+            description="Optional exact product option ID",
+            type=openapi.TYPE_INTEGER,
+            required=False,
+        ),
+    ],
+    responses={
+        200: ProductDetailSerializer,
+        400: "Invalid color_id or option_id",
+        404: "Product not found",
+    },
 )
-@api_view(['GET'])
+@api_view(["GET"])
 def product_detail(request, pk):
-    product = get_object_or_404(Product, pk=pk, is_active=True)
-    serializer = ProductDetailSerializer(
-    product,
-    context={'request': request}
-)
-    return Response({"data": serializer.data, "message": "Product retrieved successfully"})
+    product = get_object_or_404(
+        Product,
+        pk=pk,
+        is_active=True,
+    )
 
+    raw_color_id = request.query_params.get("color_id")
+    raw_option_id = request.query_params.get("option_id")
+
+    if raw_color_id not in (None, "") and not raw_color_id.isdigit():
+        return Response(
+            {"error": "color_id must be a valid color ID."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if raw_option_id not in (None, "") and not raw_option_id.isdigit():
+        return Response(
+            {"error": "option_id must be a valid option ID."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    selected_color_id = (
+        int(raw_color_id)
+        if raw_color_id not in (None, "")
+        else None
+    )
+
+    selected_option_id = (
+        int(raw_option_id)
+        if raw_option_id not in (None, "")
+        else None
+    )
+
+    if selected_option_id is not None:
+        selected_option = ProductOption.objects.filter(
+            id=selected_option_id,
+            product=product,
+            is_active=True,
+        ).first()
+
+        if not selected_option:
+            return Response(
+                {"error": "option_id does not belong to this active product."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (
+            selected_color_id is not None
+            and selected_option.color_id != selected_color_id
+        ):
+            return Response(
+                {"error": "The option_id does not match the color_id."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        selected_color_id = selected_option.color_id
+
+    elif selected_color_id is not None:
+        color_exists = ProductOption.objects.filter(
+            product=product,
+            color_id=selected_color_id,
+            is_active=True,
+        ).exists()
+
+        if not color_exists:
+            return Response(
+                {"error": "This color is not available for the product."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    serializer = ProductDetailSerializer(
+        product,
+        context={
+            "request": request,
+            "selected_color_id": selected_color_id,
+            "selected_option_id": selected_option_id,
+        },
+    )
+
+    return Response({
+        "data": serializer.data,
+        "message": "Product retrieved successfully",
+    })
 @swagger_auto_schema(
     method='get',
     operation_summary="Get related products",

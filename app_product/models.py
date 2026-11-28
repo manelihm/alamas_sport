@@ -112,6 +112,8 @@ class Category(models.Model):
 
         return self.name
 
+
+
 class Product(models.Model):
     category = models.ForeignKey(
     Category,
@@ -127,7 +129,7 @@ class Product(models.Model):
     is_trending = models.BooleanField(default=False)
     trending_sort_order = models.PositiveIntegerField(default=0)
     trending_is_active = models.BooleanField(default=True)
-    
+
 
 class ProductColor(models.Model):
     name = models.CharField(max_length=50)

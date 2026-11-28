@@ -493,10 +493,10 @@ class ProductSerializer(serializers.ModelSerializer):
 class ProductDetailSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
     brands = serializers.SerializerMethodField()
-    options = ProductOptionSerializer(
-        many=True,
-        read_only=True
-    )
+    options = serializers.SerializerMethodField()
+    default_option_id = serializers.SerializerMethodField()
+    selected_option = serializers.SerializerMethodField()
+
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         allow_null=True,
@@ -506,35 +506,167 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'category', 'name', 'description', 'gender',
-            'is_active', 'images', 'brands', 'options',
-            'is_trending', 'trending_sort_order', 'trending_is_active',
+            "id",
+            "category",
+            "name",
+            "description",
+            "gender",
+            "is_active",
+            "images",
+            "brands",
+            "options",
+            "default_option_id",
+            "selected_option",
+            "is_trending",
+            "trending_sort_order",
+            "trending_is_active",
         ]
+
+    def get_active_options(self, obj):
+        return (
+            obj.options
+            .filter(is_active=True)
+            .select_related("color", "size", "material", "brand")
+            .prefetch_related("images", "discounts")
+            .order_by("id")
+        )
+
+    def get_selected_color_id(self):
+        return self.context.get("selected_color_id")
+
+    def get_selected_option_id(self):
+        return self.context.get("selected_option_id")
 
     def get_images(self, obj):
         images = (
             ProductImage.objects
-            .filter(product__product=obj)
-            .select_related('product')
-            .order_by('-is_primary', 'id')
+            .filter(
+                product__product=obj,
+                product__is_active=True,
+            )
+            .select_related("product", "product__color")
+            .order_by("-is_primary", "id")
         )
-        return ProductImageReadSerializer(
-            images,
-            many=True,
-            context=self.context
-        ).data
+
+        selected_color_id = self.get_selected_color_id()
+
+        if selected_color_id is not None:
+            images = images.filter(product__color_id=selected_color_id)
+
+        images_by_color = {}
+
+        for image in images:
+            color = image.product.color
+
+            if color.id not in images_by_color:
+                images_by_color[color.id] = {
+                    "color": ProductColorSerializer(color).data,
+                    "images": [],
+                }
+
+            images_by_color[color.id]["images"].append(
+                ProductImageReadSerializer(
+                    image,
+                    context=self.context,
+                ).data
+            )
+
+        return list(images_by_color.values())
 
     def get_brands(self, obj):
         brands = Brand.objects.filter(
             options__product=obj,
             options__is_active=True,
             is_active=True,
-        ).distinct().order_by('name')
+        ).distinct().order_by("name")
 
         return BrandSerializer(
             brands,
             many=True,
-            context=self.context
+            context=self.context,
+        ).data
+
+    def get_options(self, obj):
+        active_options = self.get_active_options(obj)
+
+        colors = {}
+        sizes = {}
+        materials = {}
+
+        for option in active_options:
+            colors[option.color_id] = ProductColorSerializer(
+                option.color
+            ).data
+
+            sizes[option.size_id] = ProductSizeSerializer(
+                option.size
+            ).data
+
+            materials[option.material_id] = ProductMaterialSerializer(
+                option.material
+            ).data
+
+        selected_color_id = self.get_selected_color_id()
+        selected_option_id = self.get_selected_option_id()
+
+        combinations = active_options
+
+        if selected_option_id is not None:
+            selected = combinations.filter(id=selected_option_id).first()
+            if selected:
+                combinations = combinations.filter(color_id=selected.color_id)
+
+        elif selected_color_id is not None:
+            combinations = combinations.filter(color_id=selected_color_id)
+
+        return {
+            "colors": list(colors.values()),
+            "sizes": list(sizes.values()),
+            "materials": list(materials.values()),
+            "combinations": ProductOptionSerializer(
+                combinations,
+                many=True,
+                context=self.context,
+            ).data,
+        }
+
+    def get_default_option_id(self, obj):
+        option = self.get_active_options(obj).first()
+        return option.id if option else None
+
+    def get_selected_option(self, obj):
+        active_options = self.get_active_options(obj)
+
+        selected_option_id = self.get_selected_option_id()
+        selected_color_id = self.get_selected_color_id()
+
+        if selected_option_id is not None:
+            return ProductOptionSerializer(
+                active_options.get(id=selected_option_id),
+                context=self.context,
+            ).data
+
+        if selected_color_id is not None:
+            option = active_options.filter(
+                color_id=selected_color_id
+            ).first()
+
+            if not option:
+                return None
+
+            return ProductOptionSerializer(
+                option,
+                context=self.context,
+            ).data
+
+        option = active_options.first()
+
+        if not option:
+            return None
+
+        return ProductOptionSerializer(
+            option,
+            context=self.context,
         ).data
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
